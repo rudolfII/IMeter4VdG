@@ -147,8 +147,6 @@ func (a *App) FetchMeterData(ipAddress string, portPath string) (DeviceInfo, err
 	info.DeviceID = meterName
 	info.LastUpdate = -1 
 
-	hasRealReading := false
-
 	if resp, err := http.Get(baseUrl + "/I"); err == nil {
 		if body, rErr := io.ReadAll(resp.Body); rErr == nil {
 			if dec, dErr := a.decryptResponse(body); dErr == nil {
@@ -161,10 +159,9 @@ func (a *App) FetchMeterData(ipAddress string, portPath string) (DeviceInfo, err
 
 				fields := strings.Fields(rawStr)
 				if len(fields) >= 3 && fields[0] == "I" {
-					targetNum := fields[2]
-					if val, pErr := strconv.ParseFloat(targetNum, 64); pErr == nil {
+					if val, pErr := strconv.ParseFloat(fields[2], 64); pErr == nil {
 						info.LatestCurrent = val
-						hasRealReading = true
+						info.LastUpdate = time.Now().Unix()
 					}
 				}
 			}
@@ -176,23 +173,10 @@ func (a *App) FetchMeterData(ipAddress string, portPath string) (DeviceInfo, err
 		if body, rErr := io.ReadAll(resp.Body); rErr == nil {
 			if dec, dErr := a.decryptResponse(body); dErr == nil {
 				rawStr := strings.TrimSpace(string(dec))
-				// Using empty strings instead of placeholder tags
 				if rawStr != "No answer yet" && rawStr != "NA" && rawStr != "" {
 					info.LastRawResponse = rawStr
 				} else {
 					info.LastRawResponse = ""
-				}
-			}
-		}
-		resp.Body.Close()
-	}
-
-	if resp, err := http.Get(baseUrl + "/TLC"); err == nil {
-		if body, rErr := io.ReadAll(resp.Body); rErr == nil {
-			if dec, dErr := a.decryptResponse(body); dErr == nil {
-				rawStr := strings.TrimSpace(string(dec))
-				if tlcVal, pErr := strconv.Atoi(rawStr); pErr == nil && hasRealReading {
-					info.LastUpdate = time.Now().Unix() - int64(tlcVal)
 				}
 			}
 		}

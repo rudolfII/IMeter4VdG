@@ -297,7 +297,7 @@ func handleRouter(w http.ResponseWriter, r *http.Request) {
 				if fileName == "I" {
 					payload = info.LatestCurrent
 				} else if fileName == "ans" {
-					registryLock.Lock()
+					registryLock.Lock() // Hold clean lock while reading and writing memory safely
 					payload = info.LastAns
 					info.LastAns = ""
 					registryLock.Unlock()
