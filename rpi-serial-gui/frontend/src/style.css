@@ -1,0 +1,44 @@
+body {
+    background-color: #121212;
+    color: #ffffff;
+    font-family: sans-serif;
+    padding: 20px;
+}
+
+input {
+    background-color: #222222;
+    color: #ffffff;
+    border: 1px solid #444444;
+    padding: 8px;
+    margin-right: 5px;
+    border-radius: 4px;
+}
+
+button {
+    background-color: #007acc;
+    color: #ffffff;
+    border: none;
+    padding: 8px 15px;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+button:hover {
+    background-color: #0062a3;
+}
+
+#statusText {
+    margin-top: 10px;
+    font-weight: bold;
+    color: #00ffcc; /* Bright teal for visibility */
+}
+
+textarea {
+    background-color: #1e1e1e;
+    color: #00ff00; /* Classic green terminal text */
+    border: 1px solid #333333;
+    padding: 10px;
+    margin-top: 10px;
+    border-radius: 4px;
+}
+

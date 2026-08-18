@@ -3,7 +3,7 @@
   import { FetchDeviceList, FetchMeterData, SendCustomCommand } from '../wailsjs/go/main/App';
   import { WindowSetSize } from '../wailsjs/runtime/runtime';
 
-  let piIpAddress = $state("195.113.22.71:2000"); 
+  let piIpAddress = $state("195.113.22.71:8999"); 
   let activeMeters = $state([]); 
   let currentTime = $state(Math.floor(Date.now() / 1000)); 
   let layoutContainerRef = $state(null);
@@ -158,7 +158,9 @@
             
             <div class="title-header-group">
               <h2 class="main-id-title">{meter.displayName}</h2>
-              <span class="system-port-comment">({meter.sysComment}{#if meter.lastSeenRawTs !== -1} &bull; {meter.unit}{/if})</span>
+              {#if meter.lastSeenRawTs !== -1}
+                <span class="system-port-comment">({meter.unit})</span>
+              {/if}
             </div>
             
             <div class="hardware-bezel">

@@ -1,13 +1,14 @@
 export namespace main {
 	
-	export class DeviceState {
+	export class DeviceInfo {
 	    latest_current: number;
 	    unit: string;
 	    last_raw_response: string;
 	    last_update: number;
+	    device_id: string;
 	
 	    static createFrom(source: any = {}) {
-	        return new DeviceState(source);
+	        return new DeviceInfo(source);
 	    }
 	
 	    constructor(source: any = {}) {
@@ -16,6 +17,7 @@ export namespace main {
 	        this.unit = source["unit"];
 	        this.last_raw_response = source["last_raw_response"];
 	        this.last_update = source["last_update"];
+	        this.device_id = source["device_id"];
 	    }
 	}
 

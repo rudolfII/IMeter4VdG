@@ -2,10 +2,11 @@ package main
 
 import (
 	"bufio"
-	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/sha256"
-	"encoding/hex"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,29 +16,28 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fernet/fernet-go"
 	"go.bug.st/serial"
 )
 
-// DeviceInfo holds the latest cached state of an individual meter
 type DeviceInfo struct {
-	LatestCurrent   float64 `json:"latest_current"`
-	Unit            string  `json:"unit"`
-	LastRawResponse string  `json:"last_raw_response"`
-	LastUpdate      int64   `json:"last_update"`
-	DeviceID        string  `json:"device_id"` // Holds the instrument custom signature name
+	LatestCurrent   string `json:"latest_current"`
+	LastAns         string `json:"last_ans"`
+	TimeLastConnect int    `json:"time_last_connect"`
+	LastUpdate      time.Time
 }
 
 var (
-	registry        = make(map[string]*DeviceInfo)
-	registryLock    sync.RWMutex
-	activePorts     = make(map[string]serial.Port)
-	activePortsLock sync.Mutex
+	registry     = make(map[string]*DeviceInfo)
+	registryLock sync.RWMutex
+	activePorts  = make(map[string]serial.Port)
+	portsLock    sync.Mutex
 
-	runningWorkers     = make(map[string]bool)
-	runningWorkersLock sync.Mutex
+	commandMailbox = make(map[string]string)
+	mailboxLock    sync.Mutex
 )
 
-const sharedSecretKey = "YourSuperSecretPassword123!"
+const psk = "9AiX1wUIPnZYmaVDkCFI8c4nikAne-cZgfGGd_BdOA4="
 
 func discoverPorts() []string {
 	matches, _ := filepath.Glob("/dev/ttyUSB*")
@@ -46,7 +46,8 @@ func discoverPorts() []string {
 }
 
 func deviceWorker(portPath string) {
-	fmt.Printf("[Worker] Tracking stream loop launched for: %s\n", portPath)
+	fmt.Printf("[Worker] Tracking loop launched for: %s\n", portPath)
+	var meterName string
 
 	mode := &serial.Mode{
 		BaudRate: 9600,
@@ -55,245 +56,298 @@ func deviceWorker(portPath string) {
 	port, err := serial.Open(portPath, mode)
 	if err != nil {
 		fmt.Printf("[Error] Cannot link port %s: %v\n", portPath, err)
-		runningWorkersLock.Lock()
-		delete(runningWorkers, portPath)
-		runningWorkersLock.Unlock()
 		return
 	}
+
+	portsLock.Lock()
+	activePorts[portPath] = port
+	portsLock.Unlock()
 
 	defer func() {
 		port.Close()
-		activePortsLock.Lock()
+		portsLock.Lock()
 		delete(activePorts, portPath)
-		activePortsLock.Unlock()
+		portsLock.Unlock()
 
 		registryLock.Lock()
-		delete(registry, portPath)
+		if meterName != "" { delete(registry, meterName) }
 		registryLock.Unlock()
-
-		runningWorkersLock.Lock()
-		delete(runningWorkers, portPath)
-		runningWorkersLock.Unlock()
 		fmt.Printf("[Worker] Cleaned up and exited for port: %s\n", portPath)
 	}()
 
-	activePortsLock.Lock()
-	activePorts[portPath] = port
-	activePortsLock.Unlock()
-
-	// 1. Initialize empty registry structure with a default placeholder ID name
-	cleanName := strings.ToUpper(filepath.Base(portPath))
-	registryLock.Lock()
-	registry[portPath] = &DeviceInfo{Unit: "nA", DeviceID: cleanName, LastRawResponse: "Initializing instrument handshake..."}
-	registryLock.Unlock()
-
+	time.Sleep(2 * time.Second)
+	
 	reader := bufio.NewReader(port)
 
-	// 2. QUERY INSTRUMENT IDENTIFICATION BEFORE STARTUP
-	time.Sleep(1 * time.Second)
-	_, _ = port.Write([]byte("ID?\r\n"))
-	
-	// Read the unique identifier response line with a 2-second timeout window
-	idLine, idErr := reader.ReadString('\n')
-	customID := cleanName
-	if idErr == nil {
-		idLine = strings.TrimSpace(idLine)
-		if idLine != "" {
-			customID = fmt.Sprintf("%s - %s", cleanName, idLine)
-			fmt.Printf("[Worker] Identified device on %s as: %s\n", portPath, customID)
-		}
-	}
-
-	// Update registry with the newly acquired custom device ID header tag
-	registryLock.Lock()
-	registry[portPath].DeviceID = customID
-	registryLock.Unlock()
-
-	// 3. LAUNCH NORMAL SYSTEM MEASUREMENT READINGS STREAM
-	time.Sleep(1 * time.Second)
-	if _, err := port.Write([]byte("START\r\n")); err != nil {
-		fmt.Printf("[Error] Failed to send START to %s: %v\n", portPath, err)
-		return
-	}
-
-	registryLock.Lock()
-	registry[portPath].LastRawResponse = "Connected, awaiting data..."
-	registryLock.Unlock()
-
-	for {
-		line, err := reader.ReadString('\n')
+	_, _ = port.Write([]byte("id\r"))
+	for i := 0; i < 5; i++ {
+		line, err := reader.ReadString('\r')
 		if err != nil {
-			fmt.Printf("[Worker] Device disconnected on port: %s\n", portPath)
 			break
 		}
 		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
+		if strings.HasPrefix(line, "I_METER_") {
+			meterName = strings.Replace(line, "I_METER_", "", 1)
+			break
+		}
+	}
+
+	if meterName == "" {
+		fmt.Printf("[-] Failed to identify smart meter protocol on %s. Closing.\n", portPath)
+		return
+	}
+
+	fmt.Printf("[+] Successfully Identified: %s on %s\n", meterName, portPath)
+
+	registryLock.Lock()
+	registry[meterName] = &DeviceInfo{
+		LatestCurrent: "No data yet\n",
+		LastAns:       "No answer yet\n",
+		LastUpdate:    time.Now(),
+	}
+	registryLock.Unlock()
+
+	for {
+		registryLock.RLock()
+		devExists := registry[meterName] != nil
+		registryLock.RUnlock()
+		if !devExists {
+			break
 		}
 
-		// Simplified Parsing: Match generic "I =" data structures directly
-		if strings.HasPrefix(line, "I") && strings.Contains(line, "=") {
-			detectedUnit := "nA"
-			if strings.HasSuffix(line, "uA") {
-				detectedUnit = "uA"
-			}
+		mailboxLock.Lock()
+		pendingCmd, hasCmd := commandMailbox[meterName]
+		if hasCmd {
+			delete(commandMailbox, meterName)
+		}
+		mailboxLock.Unlock()
 
-			// Slice away the generic "I =" baseline token definition prefix cleanly
-			idx := strings.Index(line, "=")
-			cleanStr := line[idx+1:]
-			cleanStr = strings.ReplaceAll(cleanStr, "nA", "")
-			cleanStr = strings.ReplaceAll(cleanStr, "uA", "")
-			cleanStr = strings.TrimSpace(cleanStr)
-
-			var parsedVal float64
-			if _, sscanfErr := fmt.Sscanf(cleanStr, "%f", &parsedVal); sscanfErr == nil {
-				registryLock.Lock()
-				if dev, exists := registry[portPath]; exists {
-					dev.LatestCurrent = parsedVal
-					dev.Unit = detectedUnit
-					dev.LastUpdate = time.Now().Unix()
-					dev.LastRawResponse = ""
-				}
-				registryLock.Unlock()
-			}
-
-		// Simplified Parsing: Ignore generic "C =" configuration data structures
-		} else if strings.HasPrefix(line, "C") && strings.Contains(line, "=") {
-			continue
-
-		// Asynchronous diagnostic update responses lines stream buffer push
-		} else {
+		if hasCmd {
+			_, _ = port.Write([]byte(pendingCmd + "\r"))
+			ansLine, err := reader.ReadString('\r')
+			
 			registryLock.Lock()
-			if dev, exists := registry[portPath]; exists {
-				dev.LastRawResponse = line
-				dev.LastUpdate = time.Now().Unix()
+			if err == nil && strings.TrimSpace(ansLine) != "" {
+				registry[meterName].LastAns = strings.TrimSpace(ansLine) + "\n"
+				registry[meterName].LastUpdate = time.Now()
+			} else {
+				registry[meterName].LastAns = "NA\n"
 			}
 			registryLock.Unlock()
 		}
+
+		_, _ = port.Write([]byte("I\r"))
+		readingLine, err := reader.ReadString('\r')
+
+		registryLock.Lock()
+		if err == nil && strings.TrimSpace(readingLine) != "" {
+			registry[meterName].LatestCurrent = strings.TrimSpace(readingLine) + "\n"
+			registry[meterName].LastUpdate = time.Now()
+		} else {
+			registry[meterName].LatestCurrent = "NA\n"
+			break
+		}
+		registryLock.Unlock()
+
+		time.Sleep(1 * time.Second)
 	}
 }
 
 func monitorTopologyLoop() {
+	activeWorkers := make(map[string]bool)
 	for {
-		availablePorts := discoverPorts()
-		runningWorkersLock.Lock()
-		for _, port := range availablePorts {
-			if !runningWorkers[port] {
-				runningWorkers[port] = true
-				go deviceWorker(port)
+		ports := discoverPorts()
+		portsLock.Lock()
+		for _, p := range ports {
+			if !activeWorkers[p] {
+				activeWorkers[p] = true
+				go func(portPath string) {
+					deviceWorker(portPath)
+					portsLock.Lock()
+					activeWorkers[portPath] = false
+					portsLock.Unlock()
+				}(p)
 			}
 		}
-		runningWorkersLock.Unlock()
+		portsLock.Unlock()
 		time.Sleep(5 * time.Second)
 	}
 }
 
-func setupHTTPResponse(w http.ResponseWriter, r *http.Request) bool {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "*")
-	w.Header().Set("Content-Type", "application/json")
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
-		return true
-	}
-	return false
-}
-
-func handleDevices(w http.ResponseWriter, r *http.Request) {
-	if setupHTTPResponse(w, r) {
-		return
-	}
-	_ = json.NewEncoder(w).Encode(discoverPorts())
-}
-
-func handleCurrent(w http.ResponseWriter, r *http.Request) {
-	if setupHTTPResponse(w, r) {
-		return
-	}
-
-	targetPort := r.URL.Query().Get("port")
-
-	registryLock.RLock()
-	info, exists := registry[targetPort]
-	var responseData DeviceInfo
-	if exists {
-		responseData = *info
-	} else {
-		cleanName := strings.ToUpper(filepath.Base(targetPort))
-		responseData = DeviceInfo{LatestCurrent: 0.0, Unit: "nA", DeviceID: cleanName, LastRawResponse: "Port uninitialized"}
-	}
-	registryLock.RUnlock()
-
-	_ = json.NewEncoder(w).Encode(responseData)
-}
-
-func handleCommand(w http.ResponseWriter, r *http.Request) {
-	if setupHTTPResponse(w, r) {
-		return
-	}
-
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-
-	clientSignature := r.Header.Get("X-Gateway-Signature")
-	if clientSignature == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-
-	bodyBytes, err := io.ReadAll(r.Body)
+func encryptPayload(plainBytes []byte) ([]byte, error) {
+	k, err := fernet.DecodeKey(psk)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
+		return nil, err
 	}
-	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+	tok, err := fernet.EncryptAndSign(plainBytes, k)
+	return tok, err
+}
 
-	mac := hmac.New(sha256.New, []byte(sharedSecretKey))
-	mac.Write(bodyBytes)
-	expectedSignature := hex.EncodeToString(mac.Sum(nil))
-
-	if !hmac.Equal([]byte(clientSignature), []byte(expectedSignature)) {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
+func decryptPayload(cipherBytes []byte) ([]byte, error) {
+	rawKey, err := base64.URLEncoding.DecodeString(psk)
+	if err != nil || len(rawKey) != 32 {
+		return nil, fmt.Errorf("invalid key config")
 	}
+	signingKey := rawKey[0:16]
+	encryptionKey := rawKey[16:32]
 
-	var payload struct {
-		Port    string `json:"port"`
-		Command string `json:"command"`
-	}
-	if err = json.Unmarshal(bodyBytes, &payload); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
+	tokenStr := string(cipherBytes)
+	tokenStr = strings.TrimSpace(tokenStr)
+	tokBytes, err := base64.URLEncoding.DecodeString(tokenStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid base64 token")
 	}
 
-	activePortsLock.Lock()
-	port, exists := activePorts[payload.Port]
-	activePortsLock.Unlock()
-
-	if !exists {
-		w.WriteHeader(http.StatusNotFound)
-		return
+	if len(tokBytes) < 57 {
+		return nil, fmt.Errorf("token too short")
 	}
 
-	_, err = port.Write([]byte(payload.Command + "\r\n"))
+	macOffset := len(tokBytes) - 32
+	receivedMac := tokBytes[macOffset:]
+	dataToSign := tokBytes[0:macOffset]
+
+	mac := hmac.New(sha256.New, signingKey)
+	mac.Write(dataToSign)
+	expectedMac := mac.Sum(nil)
+
+	if !hmac.Equal(receivedMac, expectedMac) {
+		return nil, fmt.Errorf("hmac validation failed")
+	}
+
+	iv := tokBytes[9:25]
+	ciphertext := tokBytes[25:macOffset]
+
+	block, err := aes.NewCipher(encryptionKey)
+	if err != nil {
+		return nil, err
+	}
+
+	mode := cipher.NewCBCDecrypter(block, iv)
+	decrypted := make([]byte, len(ciphertext))
+	mode.CryptBlocks(decrypted, ciphertext)
+
+	if len(decrypted) == 0 {
+		return nil, fmt.Errorf("decryption blank")
+	}
+	paddingLen := int(decrypted[len(decrypted)-1])
+	if paddingLen < 1 || paddingLen > 16 || paddingLen > len(decrypted) {
+		return nil, fmt.Errorf("invalid padding")
+	}
+	
+	return decrypted[:len(decrypted)-paddingLen], nil
+}
+
+func sendEncryptedResponse(w http.ResponseWriter, statusCode int, rawData []byte) {
+	enc, err := encryptPayload(rawData)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "Success"})
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(statusCode)
+	_, _ = w.Write(enc)
+}
+
+func handleRouter(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+	var pathSegs []string
+	for _, p := range parts {
+		if p != "" {
+			pathSegs = append(pathSegs, p)
+		}
+	}
+
+	if r.Method == http.MethodGet {
+		if len(pathSegs) == 0 {
+			res, _ := json.Marshal([]string{"I_METER"})
+			sendEncryptedResponse(w, http.StatusOK, res)
+			return
+		}
+		if len(pathSegs) == 1 && pathSegs[0] == "I_METER" {
+			registryLock.RLock()
+			var names []string
+			for k := range registry {
+				names = append(names, k)
+			}
+			registryLock.RUnlock()
+			res, _ := json.Marshal(names)
+			sendEncryptedResponse(w, http.StatusOK, res)
+			return
+		}
+		if len(pathSegs) == 2 && pathSegs[0] == "I_METER" {
+			registryLock.RLock()
+			exists := registry[pathSegs[1]] != nil
+			registryLock.RUnlock()
+			if exists {
+				res, _ := json.Marshal([]string{"I", "cmd", "ans", "TLC"})
+				sendEncryptedResponse(w, http.StatusOK, res)
+				return
+			}
+		}
+		if len(pathSegs) == 3 && pathSegs[0] == "I_METER" {
+			meterName := pathSegs[1]
+			fileName := pathSegs[2]
+
+			registryLock.RLock()
+			info, exists := registry[meterName]
+			registryLock.RUnlock()
+
+			if exists {
+				var payload string
+				if fileName == "I" {
+					payload = info.LatestCurrent
+				} else if fileName == "ans" {
+					registryLock.Lock()
+					payload = info.LastAns
+					info.LastAns = ""
+					registryLock.Unlock()
+				} else if fileName == "cmd" {
+					payload = "(Write-only channel. Echo your command here)\n"
+				} else if fileName == "TLC" {
+					tlcSeconds := int(time.Since(info.LastUpdate).Seconds())
+					payload = fmt.Sprintf("%d\n", tlcSeconds)
+				} else {
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				sendEncryptedResponse(w, http.StatusOK, []byte(payload))
+				return
+			}
+		}
+	}
+
+	if r.Method == http.MethodPost {
+		if len(pathSegs) == 3 && pathSegs[0] == "I_METER" && pathSegs[2] == "cmd" {
+			meterName := pathSegs[1]
+			encBody, err := io.ReadAll(r.Body)
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			decCmd, err := decryptPayload(encBody)
+			if err != nil {
+				fmt.Println("[-] Rejecting unauthorized POST payload: bad decryption key token")
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+
+			mailboxLock.Lock()
+			commandMailbox[meterName] = strings.TrimSpace(string(decCmd))
+			mailboxLock.Unlock()
+
+			time.Sleep(1200 * time.Millisecond)
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusNotFound)
 }
 
 func main() {
 	go monitorTopologyLoop()
-
-	http.HandleFunc("/api/devices", handleDevices)
-	http.HandleFunc("/api/current", handleCurrent)
-	http.HandleFunc("/api/command", handleCommand)
-
-	fmt.Println("Pi Gateway Server listening natively on Port 2000...")
-	_ = http.ListenAndServe(":2000", nil)
+	http.HandleFunc("/", handleRouter)
+	fmt.Println("Secure Encrypted Go Server listening on Port 8999...")
+	_ = http.ListenAndServe(":8999", nil)
 }
-

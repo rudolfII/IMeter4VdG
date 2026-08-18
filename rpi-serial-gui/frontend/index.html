@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>RPi Serial Controller</title>
+</head>
+<body>
+    <div id="app">
+        <h2>RPi Serial Relay Controller</h2>
+        
+        <div class="card">
+            <input id="ipInput" type="text" placeholder="Raspberry Pi IP (e.g., 192.168.1.100)" />
+            <button onclick="connect()">Connect</button>
+            <div id="statusText">Disconnected</div>
+        </div>
+
+        <div class="card">
+            <input id="cmdInput" type="text" placeholder="Enter Serial Command..." />
+            <button onclick="sendCommand()">Send</button>
+        </div>
+
+        <h3>Terminal Log:</h3>
+        <textarea id="logArea" style="width:100%; height:200px; font-family:monospace;" readonly></textarea>
+    </div>
+    <script src="src/main.js" type="module"></script>
+</body>
+</html>
