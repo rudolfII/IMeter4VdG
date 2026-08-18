@@ -1,0 +1,1400 @@
+   1               		.file	"app.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   9               		.text
+  10               	.Ltext0:
+ 114               		.comm	rxbuf,10,1
+ 116               		.comm	rxbn,2,1
+ 118               		.comm	rxbi,2,1
+ 121               	.global	__vector_18
+ 123               	__vector_18:
+ 124               		.stabd	46,0,0
+   1:app.c         **** #include <stdlib.h>
+   2:app.c         **** #include <string.h>
+   3:app.c         **** #include <avr/io.h>
+   4:app.c         **** #include <avr/interrupt.h>
+   5:app.c         **** #include <avr/wdt.h>
+   6:app.c         **** #include <util/setbaud.h>	/* sets UBRR._VALUEs */
+   7:app.c         **** 
+   8:app.c         **** #define COMM_LEN	15
+   9:app.c         **** 
+  10:app.c         **** /* We use an interrupt-driven cyclic receive buffer */
+  11:app.c         **** #define RX_BUF_SIZE	10
+  12:app.c         **** volatile char rxbuf[RX_BUF_SIZE];
+  13:app.c         **** volatile int rxbn; /* number of available characters */
+  14:app.c         **** volatile int rxbi; /* index of first unread-character */
+  15:app.c         **** 
+  16:app.c         **** ISR(USART_RX_vect)
+  17:app.c         **** {
+ 126               	.LM0:
+ 127               	.LFBB1:
+ 128 0000 1F92      		push r1
+ 129 0002 0F92      		push r0
+ 130 0004 0FB6      		in r0,__SREG__
+ 131 0006 0F92      		push r0
+ 132 0008 1124      		clr __zero_reg__
+ 133 000a 2F93      		push r18
+ 134 000c 3F93      		push r19
+ 135 000e 8F93      		push r24
+ 136 0010 9F93      		push r25
+ 137 0012 EF93      		push r30
+ 138 0014 FF93      		push r31
+ 139 0016 CF93      		push r28
+ 140 0018 DF93      		push r29
+ 141 001a 00D0      		rcall .
+ 142 001c CDB7      		in r28,__SP_L__
+ 143 001e DEB7      		in r29,__SP_H__
+ 144               	/* prologue: Signal */
+ 145               	/* frame size = 2 */
+ 146               	/* stack size = 13 */
+ 147               	.L__stack_usage = 13
+  18:app.c         **** 	int i;
+  19:app.c         **** 
+  20:app.c         **** 	if(rxbn < RX_BUF_SIZE) {
+ 149               	.LM1:
+ 150 0020 8091 0000 		lds r24,rxbn
+ 151 0024 9091 0000 		lds r25,rxbn+1
+ 153               	.LM2:
+ 154 0028 0A97      		sbiw r24,10
+ 155 002a 04F4      		brge .L4
+  21:app.c         **** 		i = rxbi + rxbn;
+ 157               	.LM3:
+ 158 002c 2091 0000 		lds r18,rxbi
+ 159 0030 3091 0000 		lds r19,rxbi+1
+ 160 0034 8091 0000 		lds r24,rxbn
+ 161 0038 9091 0000 		lds r25,rxbn+1
+ 163               	.LM4:
+ 164 003c 820F      		add r24,r18
+ 165 003e 931F      		adc r25,r19
+ 166 0040 9A83      		std Y+2,r25
+ 167 0042 8983      		std Y+1,r24
+  22:app.c         **** 		if (i >= RX_BUF_SIZE)
+ 169               	.LM5:
+ 170 0044 8981      		ldd r24,Y+1
+ 171 0046 9A81      		ldd r25,Y+2
+ 172 0048 0A97      		sbiw r24,10
+ 173 004a 04F0      		brlt .L3
+  23:app.c         **** 			i = i - RX_BUF_SIZE;
+ 175               	.LM6:
+ 176 004c 8981      		ldd r24,Y+1
+ 177 004e 9A81      		ldd r25,Y+2
+ 178 0050 0A97      		sbiw r24,10
+ 179 0052 9A83      		std Y+2,r25
+ 180 0054 8983      		std Y+1,r24
+ 181               	.L3:
+  24:app.c         **** 		rxbuf[i] = UDR0;
+ 183               	.LM7:
+ 184 0056 86EC      		ldi r24,lo8(-58)
+ 185 0058 90E0      		ldi r25,0
+ 186 005a FC01      		movw r30,r24
+ 187 005c 8081      		ld r24,Z
+ 188 005e 282F      		mov r18,r24
+ 190               	.LM8:
+ 191 0060 8981      		ldd r24,Y+1
+ 192 0062 9A81      		ldd r25,Y+2
+ 193 0064 8050      		subi r24,lo8(-(rxbuf))
+ 194 0066 9040      		sbci r25,hi8(-(rxbuf))
+ 195 0068 FC01      		movw r30,r24
+ 196 006a 2083      		st Z,r18
+  25:app.c         **** 		rxbn++;
+ 198               	.LM9:
+ 199 006c 8091 0000 		lds r24,rxbn
+ 200 0070 9091 0000 		lds r25,rxbn+1
+ 201 0074 0196      		adiw r24,1
+ 202 0076 9093 0000 		sts rxbn+1,r25
+ 203 007a 8093 0000 		sts rxbn,r24
+ 204               	.L4:
+  26:app.c         **** 	}
+  27:app.c         **** }
+ 206               	.LM10:
+ 207 007e 0000      		nop
+ 208               	/* epilogue start */
+ 209 0080 0F90      		pop __tmp_reg__
+ 210 0082 0F90      		pop __tmp_reg__
+ 211 0084 DF91      		pop r29
+ 212 0086 CF91      		pop r28
+ 213 0088 FF91      		pop r31
+ 214 008a EF91      		pop r30
+ 215 008c 9F91      		pop r25
+ 216 008e 8F91      		pop r24
+ 217 0090 3F91      		pop r19
+ 218 0092 2F91      		pop r18
+ 219 0094 0F90      		pop r0
+ 220 0096 0FBE      		out __SREG__,r0
+ 221 0098 0F90      		pop r0
+ 222 009a 1F90      		pop r1
+ 223 009c 1895      		reti
+ 228               	.Lscope1:
+ 230               		.stabd	78,0,0
+ 233               	uart_init:
+ 234               		.stabd	46,0,0
+  28:app.c         **** 
+  29:app.c         **** 
+  30:app.c         **** static void
+  31:app.c         **** uart_init(void) {
+ 236               	.LM11:
+ 237               	.LFBB2:
+ 238 009e CF93      		push r28
+ 239 00a0 DF93      		push r29
+ 240 00a2 CDB7      		in r28,__SP_L__
+ 241 00a4 DEB7      		in r29,__SP_H__
+ 242               	/* prologue: function */
+ 243               	/* frame size = 0 */
+ 244               	/* stack size = 2 */
+ 245               	.L__stack_usage = 2
+  32:app.c         **** 	UBRR0H = UBRRH_VALUE;
+ 247               	.LM12:
+ 248 00a6 85EC      		ldi r24,lo8(-59)
+ 249 00a8 90E0      		ldi r25,0
+ 251               	.LM13:
+ 252 00aa FC01      		movw r30,r24
+ 253 00ac 1082      		st Z,__zero_reg__
+  33:app.c         **** 	UBRR0L = UBRRL_VALUE;
+ 255               	.LM14:
+ 256 00ae 84EC      		ldi r24,lo8(-60)
+ 257 00b0 90E0      		ldi r25,0
+ 259               	.LM15:
+ 260 00b2 27E6      		ldi r18,lo8(103)
+ 261 00b4 FC01      		movw r30,r24
+ 262 00b6 2083      		st Z,r18
+  34:app.c         **** 	#if USE_2X
+  35:app.c         **** 		UCSR0A |= _BV(U2X0);
+  36:app.c         **** 	#else
+  37:app.c         **** 		UCSR0A &= ~(_BV(U2X0));
+ 264               	.LM16:
+ 265 00b8 80EC      		ldi r24,lo8(-64)
+ 266 00ba 90E0      		ldi r25,0
+ 267 00bc FC01      		movw r30,r24
+ 268 00be 2081      		ld r18,Z
+ 269 00c0 80EC      		ldi r24,lo8(-64)
+ 270 00c2 90E0      		ldi r25,0
+ 271 00c4 2D7F      		andi r18,lo8(-3)
+ 272 00c6 FC01      		movw r30,r24
+ 273 00c8 2083      		st Z,r18
+  38:app.c         **** 	#endif
+  39:app.c         **** 	UCSR0C = _BV(UCSZ01) | _BV(UCSZ00); /* 8-bit data */
+ 275               	.LM17:
+ 276 00ca 82EC      		ldi r24,lo8(-62)
+ 277 00cc 90E0      		ldi r25,0
+ 279               	.LM18:
+ 280 00ce 26E0      		ldi r18,lo8(6)
+ 281 00d0 FC01      		movw r30,r24
+ 282 00d2 2083      		st Z,r18
+  40:app.c         **** 	/* Enable RX and TX, interrupt on reception */
+  41:app.c         **** 	UCSR0B = _BV(RXEN0) | _BV(TXEN0) | _BV(RXCIE0);
+ 284               	.LM19:
+ 285 00d4 81EC      		ldi r24,lo8(-63)
+ 286 00d6 90E0      		ldi r25,0
+ 288               	.LM20:
+ 289 00d8 28E9      		ldi r18,lo8(-104)
+ 290 00da FC01      		movw r30,r24
+ 291 00dc 2083      		st Z,r18
+  42:app.c         **** }
+ 293               	.LM21:
+ 294 00de 0000      		nop
+ 295               	/* epilogue start */
+ 296 00e0 DF91      		pop r29
+ 297 00e2 CF91      		pop r28
+ 298 00e4 0895      		ret
+ 300               	.Lscope2:
+ 302               		.stabd	78,0,0
+ 305               	uart_getc:
+ 306               		.stabd	46,0,0
+  43:app.c         **** 
+  44:app.c         **** 
+  45:app.c         **** static int
+  46:app.c         **** uart_getc()
+  47:app.c         **** {
+ 308               	.LM22:
+ 309               	.LFBB3:
+ 310 00e6 CF93      		push r28
+ 311 00e8 DF93      		push r29
+ 312 00ea 0F92      		push __tmp_reg__
+ 313 00ec CDB7      		in r28,__SP_L__
+ 314 00ee DEB7      		in r29,__SP_H__
+ 315               	/* prologue: function */
+ 316               	/* frame size = 1 */
+ 317               	/* stack size = 3 */
+ 318               	.L__stack_usage = 3
+  48:app.c         **** 	char r;
+  49:app.c         **** 
+  50:app.c         **** 	if (rxbn > 0) {
+ 320               	.LM23:
+ 321 00f0 8091 0000 		lds r24,rxbn
+ 322 00f4 9091 0000 		lds r25,rxbn+1
+ 324               	.LM24:
+ 325 00f8 1816      		cp __zero_reg__,r24
+ 326 00fa 1906      		cpc __zero_reg__,r25
+ 327 00fc 04F4      		brge .L7
+  51:app.c         **** 		cli();
+ 329               	.LM25:
+ 330               	/* #APP */
+ 331               	 ;  51 "app.c" 1
+ 332 00fe F894      		cli
+ 333               	 ;  0 "" 2
+  52:app.c         **** 		r = rxbuf[rxbi];
+ 335               	.LM26:
+ 336               	/* #NOAPP */
+ 337 0100 8091 0000 		lds r24,rxbi
+ 338 0104 9091 0000 		lds r25,rxbi+1
+ 340               	.LM27:
+ 341 0108 8050      		subi r24,lo8(-(rxbuf))
+ 342 010a 9040      		sbci r25,hi8(-(rxbuf))
+ 343 010c FC01      		movw r30,r24
+ 344 010e 8081      		ld r24,Z
+ 345 0110 8983      		std Y+1,r24
+  53:app.c         **** 		rxbi++;
+ 347               	.LM28:
+ 348 0112 8091 0000 		lds r24,rxbi
+ 349 0116 9091 0000 		lds r25,rxbi+1
+ 350 011a 0196      		adiw r24,1
+ 351 011c 9093 0000 		sts rxbi+1,r25
+ 352 0120 8093 0000 		sts rxbi,r24
+  54:app.c         **** 		if(rxbi == RX_BUF_SIZE)
+ 354               	.LM29:
+ 355 0124 8091 0000 		lds r24,rxbi
+ 356 0128 9091 0000 		lds r25,rxbi+1
+ 358               	.LM30:
+ 359 012c 0A97      		sbiw r24,10
+ 360 012e 01F4      		brne .L8
+  55:app.c         **** 			rxbi = 0;
+ 362               	.LM31:
+ 363 0130 1092 0000 		sts rxbi+1,__zero_reg__
+ 364 0134 1092 0000 		sts rxbi,__zero_reg__
+ 365               	.L8:
+  56:app.c         **** 		rxbn--;
+ 367               	.LM32:
+ 368 0138 8091 0000 		lds r24,rxbn
+ 369 013c 9091 0000 		lds r25,rxbn+1
+ 370 0140 0197      		sbiw r24,1
+ 371 0142 9093 0000 		sts rxbn+1,r25
+ 372 0146 8093 0000 		sts rxbn,r24
+  57:app.c         **** 		sei();
+ 374               	.LM33:
+ 375               	/* #APP */
+ 376               	 ;  57 "app.c" 1
+ 377 014a 7894      		sei
+ 378               	 ;  0 "" 2
+  58:app.c         **** 		return r;
+ 380               	.LM34:
+ 381               	/* #NOAPP */
+ 382 014c 8981      		ldd r24,Y+1
+ 383 014e 082E      		mov __tmp_reg__,r24
+ 384 0150 000C      		lsl r0
+ 385 0152 990B      		sbc r25,r25
+ 386 0154 00C0      		rjmp .L9
+ 387               	.L7:
+  59:app.c         **** 	} else
+  60:app.c         **** 		return -1;
+ 389               	.LM35:
+ 390 0156 8FEF      		ldi r24,lo8(-1)
+ 391 0158 9FEF      		ldi r25,lo8(-1)
+ 392               	.L9:
+ 393               	/* epilogue start */
+  61:app.c         **** }
+ 395               	.LM36:
+ 396 015a 0F90      		pop __tmp_reg__
+ 397 015c DF91      		pop r29
+ 398 015e CF91      		pop r28
+ 399 0160 0895      		ret
+ 404               	.Lscope3:
+ 406               		.stabd	78,0,0
+ 410               	uart_putc:
+ 411               		.stabd	46,0,0
+  62:app.c         **** 
+  63:app.c         **** 
+  64:app.c         **** static void
+  65:app.c         **** uart_putc(char c)
+  66:app.c         **** {
+ 413               	.LM37:
+ 414               	.LFBB4:
+ 415 0162 CF93      		push r28
+ 416 0164 DF93      		push r29
+ 417 0166 0F92      		push __tmp_reg__
+ 418 0168 CDB7      		in r28,__SP_L__
+ 419 016a DEB7      		in r29,__SP_H__
+ 420               	/* prologue: function */
+ 421               	/* frame size = 1 */
+ 422               	/* stack size = 3 */
+ 423               	.L__stack_usage = 3
+ 424 016c 8983      		std Y+1,r24
+ 425               	.L11:
+  67:app.c         **** 	loop_until_bit_is_set(UCSR0A, UDRE0);
+ 427               	.LM38:
+ 428 016e 80EC      		ldi r24,lo8(-64)
+ 429 0170 90E0      		ldi r25,0
+ 430 0172 FC01      		movw r30,r24
+ 431 0174 8081      		ld r24,Z
+ 432 0176 882F      		mov r24,r24
+ 433 0178 90E0      		ldi r25,0
+ 434 017a 8072      		andi r24,32
+ 435 017c 9927      		clr r25
+ 436 017e 892B      		or r24,r25
+ 437 0180 01F0      		breq .L11
+  68:app.c         **** 	UDR0 = c;
+ 439               	.LM39:
+ 440 0182 86EC      		ldi r24,lo8(-58)
+ 441 0184 90E0      		ldi r25,0
+ 443               	.LM40:
+ 444 0186 2981      		ldd r18,Y+1
+ 445 0188 FC01      		movw r30,r24
+ 446 018a 2083      		st Z,r18
+  69:app.c         **** }
+ 448               	.LM41:
+ 449 018c 0000      		nop
+ 450               	/* epilogue start */
+ 451 018e 0F90      		pop __tmp_reg__
+ 452 0190 DF91      		pop r29
+ 453 0192 CF91      		pop r28
+ 454 0194 0895      		ret
+ 456               	.Lscope4:
+ 458               		.stabd	78,0,0
+ 462               	uart_outs:
+ 463               		.stabd	46,0,0
+  70:app.c         **** 
+  71:app.c         **** 
+  72:app.c         **** static void
+  73:app.c         **** uart_outs(char *s)
+  74:app.c         **** {
+ 465               	.LM42:
+ 466               	.LFBB5:
+ 467 0196 CF93      		push r28
+ 468 0198 DF93      		push r29
+ 469 019a 00D0      		rcall .
+ 470 019c 0F92      		push __tmp_reg__
+ 471 019e CDB7      		in r28,__SP_L__
+ 472 01a0 DEB7      		in r29,__SP_H__
+ 473               	/* prologue: function */
+ 474               	/* frame size = 3 */
+ 475               	/* stack size = 5 */
+ 476               	.L__stack_usage = 5
+ 477 01a2 9B83      		std Y+3,r25
+ 478 01a4 8A83      		std Y+2,r24
+  75:app.c         **** 	char c;
+  76:app.c         **** 
+  77:app.c         **** 	while((c = *s++))
+ 480               	.LM43:
+ 481 01a6 00C0      		rjmp .L13
+ 482               	.L14:
+  78:app.c         **** 		uart_putc(c);
+ 484               	.LM44:
+ 485 01a8 8981      		ldd r24,Y+1
+ 486 01aa 0E94 0000 		call uart_putc
+ 487               	.L13:
+  77:app.c         **** 		uart_putc(c);
+ 489               	.LM45:
+ 490 01ae 8A81      		ldd r24,Y+2
+ 491 01b0 9B81      		ldd r25,Y+3
+ 492 01b2 9C01      		movw r18,r24
+ 493 01b4 2F5F      		subi r18,-1
+ 494 01b6 3F4F      		sbci r19,-1
+ 495 01b8 3B83      		std Y+3,r19
+ 496 01ba 2A83      		std Y+2,r18
+  77:app.c         **** 		uart_putc(c);
+ 498               	.LM46:
+ 499 01bc FC01      		movw r30,r24
+ 500 01be 8081      		ld r24,Z
+ 501 01c0 8983      		std Y+1,r24
+  77:app.c         **** 		uart_putc(c);
+ 503               	.LM47:
+ 504 01c2 8981      		ldd r24,Y+1
+ 505 01c4 8823      		tst r24
+ 506 01c6 01F4      		brne .L14
+  79:app.c         **** }
+ 508               	.LM48:
+ 509 01c8 0000      		nop
+ 510 01ca 0000      		nop
+ 511               	/* epilogue start */
+ 512 01cc 0F90      		pop __tmp_reg__
+ 513 01ce 0F90      		pop __tmp_reg__
+ 514 01d0 0F90      		pop __tmp_reg__
+ 515 01d2 DF91      		pop r29
+ 516 01d4 CF91      		pop r28
+ 517 01d6 0895      		ret
+ 522               	.Lscope5:
+ 524               		.stabd	78,0,0
+ 525               		.section	.rodata
+ 526               	.LC0:
+ 527 0000 6170 706C 		.string	"application starting...\n\r"
+ 527      6963 6174 
+ 527      696F 6E20 
+ 527      7374 6172 
+ 527      7469 6E67 
+ 528               	.LC1:
+ 529 001a 2000      		.string	" "
+ 530               	.LC2:
+ 531 001c 00        		.string	""
+ 532               	.LC3:
+ 533 001d 7465 7374 		.string	"test"
+ 533      00
+ 534               	.LC4:
+ 535 0022 7465 7374 		.string	"test OK\n\r"
+ 535      204F 4B0A 
+ 535      0D00 
+ 536               	.LC5:
+ 537 002c 7265 7365 		.string	"reset"
+ 537      7400 
+ 538               	.LC6:
+ 539 0032 6964 00   		.string	"id"
+ 540               	.LC7:
+ 541 0035 495F 4D45 		.string	"I_METER_RS_pA\n\r"
+ 541      5445 525F 
+ 541      5253 5F70 
+ 541      410A 0D00 
+ 542               	.LC8:
+ 543 0045 4900      		.string	"I"
+ 544               	.LC9:
+ 545 0047 4920 3D20 		.string	"I = 21.00 uA\n\r"
+ 545      3231 2E30 
+ 545      3020 7541 
+ 545      0A0D 00
+ 546               	.LC10:
+ 547 0056 0A0D 00   		.string	"\n\r"
+ 548               		.text
+ 550               	.global	main
+ 552               	main:
+ 553               		.stabd	46,0,0
+  80:app.c         **** 
+  81:app.c         **** 
+  82:app.c         **** __attribute__((OS_main))
+  83:app.c         **** int
+  84:app.c         **** main(void)
+  85:app.c         **** { 
+ 555               	.LM49:
+ 556               	.LFBB6:
+ 557 01d8 CDB7      		in r28,__SP_L__
+ 558 01da DEB7      		in r29,__SP_H__
+ 559 01dc 6697      		sbiw r28,22
+ 560 01de DEBF      		out __SP_H__,r29
+ 561 01e0 CDBF      		out __SP_L__,r28
+ 562               	/* prologue: function */
+ 563               	/* frame size = 22 */
+ 564               	/* stack size = 22 */
+ 565               	.L__stack_usage = 22
+  86:app.c         **** 	int c;
+  87:app.c         **** 	char comm[COMM_LEN + 1];
+  88:app.c         **** 	int commPos = 0;
+ 567               	.LM50:
+ 568 01e2 1A82      		std Y+2,__zero_reg__
+ 569 01e4 1982      		std Y+1,__zero_reg__
+  89:app.c         **** 	//long val;
+  90:app.c         **** 	char *valStr;
+  91:app.c         **** 
+  92:app.c         **** 	MCUSR = 0;
+ 571               	.LM51:
+ 572 01e6 84E5      		ldi r24,lo8(84)
+ 573 01e8 90E0      		ldi r25,0
+ 575               	.LM52:
+ 576 01ea FC01      		movw r30,r24
+ 577 01ec 1082      		st Z,__zero_reg__
+ 578               	.LBB6:
+ 579               	.LBB7:
+ 580               	.LBB8:
+ 582               	.Ltext1:
+   1:/usr/avr/include/avr/wdt.h **** /* Copyright (c) 2002, 2004 Marek Michalkiewicz
+   2:/usr/avr/include/avr/wdt.h ****    Copyright (c) 2005, 2006, 2007 Eric B. Weddington
+   3:/usr/avr/include/avr/wdt.h ****    All rights reserved.
+   4:/usr/avr/include/avr/wdt.h **** 
+   5:/usr/avr/include/avr/wdt.h ****    Redistribution and use in source and binary forms, with or without
+   6:/usr/avr/include/avr/wdt.h ****    modification, are permitted provided that the following conditions are met:
+   7:/usr/avr/include/avr/wdt.h **** 
+   8:/usr/avr/include/avr/wdt.h ****    * Redistributions of source code must retain the above copyright
+   9:/usr/avr/include/avr/wdt.h ****      notice, this list of conditions and the following disclaimer.
+  10:/usr/avr/include/avr/wdt.h **** 
+  11:/usr/avr/include/avr/wdt.h ****    * Redistributions in binary form must reproduce the above copyright
+  12:/usr/avr/include/avr/wdt.h ****      notice, this list of conditions and the following disclaimer in
+  13:/usr/avr/include/avr/wdt.h ****      the documentation and/or other materials provided with the
+  14:/usr/avr/include/avr/wdt.h ****      distribution.
+  15:/usr/avr/include/avr/wdt.h **** 
+  16:/usr/avr/include/avr/wdt.h ****    * Neither the name of the copyright holders nor the names of
+  17:/usr/avr/include/avr/wdt.h ****      contributors may be used to endorse or promote products derived
+  18:/usr/avr/include/avr/wdt.h ****      from this software without specific prior written permission.
+  19:/usr/avr/include/avr/wdt.h **** 
+  20:/usr/avr/include/avr/wdt.h ****   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+  21:/usr/avr/include/avr/wdt.h ****   AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+  22:/usr/avr/include/avr/wdt.h ****   IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+  23:/usr/avr/include/avr/wdt.h ****   ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+  24:/usr/avr/include/avr/wdt.h ****   LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+  25:/usr/avr/include/avr/wdt.h ****   CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+  26:/usr/avr/include/avr/wdt.h ****   SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+  27:/usr/avr/include/avr/wdt.h ****   INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+  28:/usr/avr/include/avr/wdt.h ****   CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+  29:/usr/avr/include/avr/wdt.h ****   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+  30:/usr/avr/include/avr/wdt.h ****   POSSIBILITY OF SUCH DAMAGE. */
+  31:/usr/avr/include/avr/wdt.h **** 
+  32:/usr/avr/include/avr/wdt.h **** /* $Id: wdt.h 2522 2016-04-20 05:43:23Z joerg_wunsch $ */
+  33:/usr/avr/include/avr/wdt.h **** 
+  34:/usr/avr/include/avr/wdt.h **** /*
+  35:/usr/avr/include/avr/wdt.h ****    avr/wdt.h - macros for AVR watchdog timer
+  36:/usr/avr/include/avr/wdt.h ****  */
+  37:/usr/avr/include/avr/wdt.h **** 
+  38:/usr/avr/include/avr/wdt.h **** #ifndef _AVR_WDT_H_
+  39:/usr/avr/include/avr/wdt.h **** #define _AVR_WDT_H_
+  40:/usr/avr/include/avr/wdt.h **** 
+  41:/usr/avr/include/avr/wdt.h **** #include <avr/io.h>
+  42:/usr/avr/include/avr/wdt.h **** #include <stdint.h>
+  43:/usr/avr/include/avr/wdt.h **** 
+  44:/usr/avr/include/avr/wdt.h **** /** \file */
+  45:/usr/avr/include/avr/wdt.h **** /** \defgroup avr_watchdog <avr/wdt.h>: Watchdog timer handling
+  46:/usr/avr/include/avr/wdt.h ****     \code #include <avr/wdt.h> \endcode
+  47:/usr/avr/include/avr/wdt.h **** 
+  48:/usr/avr/include/avr/wdt.h ****     This header file declares the interface to some inline macros
+  49:/usr/avr/include/avr/wdt.h ****     handling the watchdog timer present in many AVR devices.  In order
+  50:/usr/avr/include/avr/wdt.h ****     to prevent the watchdog timer configuration from being
+  51:/usr/avr/include/avr/wdt.h ****     accidentally altered by a crashing application, a special timed
+  52:/usr/avr/include/avr/wdt.h ****     sequence is required in order to change it.  The macros within
+  53:/usr/avr/include/avr/wdt.h ****     this header file handle the required sequence automatically
+  54:/usr/avr/include/avr/wdt.h ****     before changing any value.  Interrupts will be disabled during
+  55:/usr/avr/include/avr/wdt.h ****     the manipulation.
+  56:/usr/avr/include/avr/wdt.h **** 
+  57:/usr/avr/include/avr/wdt.h ****     \note Depending on the fuse configuration of the particular
+  58:/usr/avr/include/avr/wdt.h ****     device, further restrictions might apply, in particular it might
+  59:/usr/avr/include/avr/wdt.h ****     be disallowed to turn off the watchdog timer.
+  60:/usr/avr/include/avr/wdt.h **** 
+  61:/usr/avr/include/avr/wdt.h ****     Note that for newer devices (ATmega88 and newer, effectively any
+  62:/usr/avr/include/avr/wdt.h ****     AVR that has the option to also generate interrupts), the watchdog
+  63:/usr/avr/include/avr/wdt.h ****     timer remains active even after a system reset (except a power-on
+  64:/usr/avr/include/avr/wdt.h ****     condition), using the fastest prescaler value (approximately 15
+  65:/usr/avr/include/avr/wdt.h ****     ms).  It is therefore required to turn off the watchdog early
+  66:/usr/avr/include/avr/wdt.h ****     during program startup, the datasheet recommends a sequence like
+  67:/usr/avr/include/avr/wdt.h ****     the following:
+  68:/usr/avr/include/avr/wdt.h **** 
+  69:/usr/avr/include/avr/wdt.h ****     \code
+  70:/usr/avr/include/avr/wdt.h ****     #include <stdint.h>
+  71:/usr/avr/include/avr/wdt.h ****     #include <avr/wdt.h>
+  72:/usr/avr/include/avr/wdt.h **** 
+  73:/usr/avr/include/avr/wdt.h ****     uint8_t mcusr_mirror __attribute__ ((section (".noinit")));
+  74:/usr/avr/include/avr/wdt.h **** 
+  75:/usr/avr/include/avr/wdt.h ****     void get_mcusr(void) \
+  76:/usr/avr/include/avr/wdt.h ****       __attribute__((naked)) \
+  77:/usr/avr/include/avr/wdt.h ****       __attribute__((section(".init3")));
+  78:/usr/avr/include/avr/wdt.h ****     void get_mcusr(void)
+  79:/usr/avr/include/avr/wdt.h ****     {
+  80:/usr/avr/include/avr/wdt.h ****       mcusr_mirror = MCUSR;
+  81:/usr/avr/include/avr/wdt.h ****       MCUSR = 0;
+  82:/usr/avr/include/avr/wdt.h ****       wdt_disable();
+  83:/usr/avr/include/avr/wdt.h ****     }
+  84:/usr/avr/include/avr/wdt.h ****     \endcode
+  85:/usr/avr/include/avr/wdt.h **** 
+  86:/usr/avr/include/avr/wdt.h ****     Saving the value of MCUSR in \c mcusr_mirror is only needed if the
+  87:/usr/avr/include/avr/wdt.h ****     application later wants to examine the reset source, but in particular, 
+  88:/usr/avr/include/avr/wdt.h ****     clearing the watchdog reset flag before disabling the
+  89:/usr/avr/include/avr/wdt.h ****     watchdog is required, according to the datasheet.
+  90:/usr/avr/include/avr/wdt.h **** */
+  91:/usr/avr/include/avr/wdt.h **** 
+  92:/usr/avr/include/avr/wdt.h **** /**
+  93:/usr/avr/include/avr/wdt.h ****    \ingroup avr_watchdog
+  94:/usr/avr/include/avr/wdt.h ****    Reset the watchdog timer.  When the watchdog timer is enabled,
+  95:/usr/avr/include/avr/wdt.h ****    a call to this instruction is required before the timer expires,
+  96:/usr/avr/include/avr/wdt.h ****    otherwise a watchdog-initiated device reset will occur. 
+  97:/usr/avr/include/avr/wdt.h **** */
+  98:/usr/avr/include/avr/wdt.h **** 
+  99:/usr/avr/include/avr/wdt.h **** #define wdt_reset() __asm__ __volatile__ ("wdr")
+ 100:/usr/avr/include/avr/wdt.h **** 
+ 101:/usr/avr/include/avr/wdt.h **** #ifndef __DOXYGEN__
+ 102:/usr/avr/include/avr/wdt.h **** 
+ 103:/usr/avr/include/avr/wdt.h **** #if defined(WDP3)
+ 104:/usr/avr/include/avr/wdt.h **** # define _WD_PS3_MASK       _BV(WDP3)
+ 105:/usr/avr/include/avr/wdt.h **** #else
+ 106:/usr/avr/include/avr/wdt.h **** # define _WD_PS3_MASK       0x00
+ 107:/usr/avr/include/avr/wdt.h **** #endif
+ 108:/usr/avr/include/avr/wdt.h **** 
+ 109:/usr/avr/include/avr/wdt.h **** #if defined(WDTCSR)
+ 110:/usr/avr/include/avr/wdt.h **** #  define _WD_CONTROL_REG     WDTCSR
+ 111:/usr/avr/include/avr/wdt.h **** #elif defined(WDTCR)
+ 112:/usr/avr/include/avr/wdt.h **** #  define _WD_CONTROL_REG     WDTCR
+ 113:/usr/avr/include/avr/wdt.h **** #else
+ 114:/usr/avr/include/avr/wdt.h **** #  define _WD_CONTROL_REG     WDT
+ 115:/usr/avr/include/avr/wdt.h **** #endif
+ 116:/usr/avr/include/avr/wdt.h **** 
+ 117:/usr/avr/include/avr/wdt.h **** #if defined(WDTOE)
+ 118:/usr/avr/include/avr/wdt.h **** #define _WD_CHANGE_BIT      WDTOE
+ 119:/usr/avr/include/avr/wdt.h **** #else
+ 120:/usr/avr/include/avr/wdt.h **** #define _WD_CHANGE_BIT      WDCE
+ 121:/usr/avr/include/avr/wdt.h **** #endif
+ 122:/usr/avr/include/avr/wdt.h **** 
+ 123:/usr/avr/include/avr/wdt.h **** #endif	/* !__DOXYGEN__ */
+ 124:/usr/avr/include/avr/wdt.h **** 
+ 125:/usr/avr/include/avr/wdt.h **** 
+ 126:/usr/avr/include/avr/wdt.h **** /**
+ 127:/usr/avr/include/avr/wdt.h ****    \ingroup avr_watchdog
+ 128:/usr/avr/include/avr/wdt.h ****    Enable the watchdog timer, configuring it for expiry after
+ 129:/usr/avr/include/avr/wdt.h ****    \c timeout (which is a combination of the \c WDP0 through
+ 130:/usr/avr/include/avr/wdt.h ****    \c WDP2 bits to write into the \c WDTCR register; For those devices 
+ 131:/usr/avr/include/avr/wdt.h ****    that have a \c WDTCSR register, it uses the combination of the \c WDP0 
+ 132:/usr/avr/include/avr/wdt.h ****    through \c WDP3 bits).
+ 133:/usr/avr/include/avr/wdt.h **** 
+ 134:/usr/avr/include/avr/wdt.h ****    See also the symbolic constants \c WDTO_15MS et al.
+ 135:/usr/avr/include/avr/wdt.h **** */
+ 136:/usr/avr/include/avr/wdt.h **** 
+ 137:/usr/avr/include/avr/wdt.h **** 
+ 138:/usr/avr/include/avr/wdt.h **** #if defined(__AVR_XMEGA__)
+ 139:/usr/avr/include/avr/wdt.h **** 
+ 140:/usr/avr/include/avr/wdt.h **** /*
+ 141:/usr/avr/include/avr/wdt.h ****    wdt_enable(timeout) for xmega devices
+ 142:/usr/avr/include/avr/wdt.h **** ** write signature (CCP_IOREG_gc) that enables change of protected I/O
+ 143:/usr/avr/include/avr/wdt.h ****    registers to the CCP register
+ 144:/usr/avr/include/avr/wdt.h **** ** At the same time,
+ 145:/usr/avr/include/avr/wdt.h ****    1) set WDT change enable (WDT_CEN_bm)
+ 146:/usr/avr/include/avr/wdt.h ****    2) enable WDT (WDT_ENABLE_bm)
+ 147:/usr/avr/include/avr/wdt.h ****    3) set timeout (timeout)
+ 148:/usr/avr/include/avr/wdt.h **** ** Synchronization starts when ENABLE bit of WDT is set. So, wait till it
+ 149:/usr/avr/include/avr/wdt.h ****    finishes (SYNCBUSY of STATUS register is automatically cleared after the
+ 150:/usr/avr/include/avr/wdt.h ****    sync is finished).
+ 151:/usr/avr/include/avr/wdt.h **** */
+ 152:/usr/avr/include/avr/wdt.h **** #define wdt_enable(timeout) \
+ 153:/usr/avr/include/avr/wdt.h **** do { \
+ 154:/usr/avr/include/avr/wdt.h **** uint8_t temp; \
+ 155:/usr/avr/include/avr/wdt.h **** __asm__ __volatile__ (         \
+ 156:/usr/avr/include/avr/wdt.h ****     "in __tmp_reg__, %[rampd]"              "\n\t" \
+ 157:/usr/avr/include/avr/wdt.h ****     "out %[rampd], __zero_reg__"            "\n\t" \
+ 158:/usr/avr/include/avr/wdt.h ****     "out %[ccp_reg], %[ioreg_cen_mask]"     "\n\t" \
+ 159:/usr/avr/include/avr/wdt.h ****     "sts %[wdt_reg], %[wdt_enable_timeout]" "\n\t" \
+ 160:/usr/avr/include/avr/wdt.h ****     "1:lds %[tmp], %[wdt_status_reg]"       "\n\t" \
+ 161:/usr/avr/include/avr/wdt.h ****     "sbrc %[tmp], %[wdt_syncbusy_bit]"      "\n\t" \
+ 162:/usr/avr/include/avr/wdt.h ****     "rjmp 1b"                               "\n\t" \
+ 163:/usr/avr/include/avr/wdt.h ****     "out %[rampd], __tmp_reg__"             "\n\t" \
+ 164:/usr/avr/include/avr/wdt.h ****     : [tmp]                "=r" (temp) \
+ 165:/usr/avr/include/avr/wdt.h ****     : [rampd]              "I" (_SFR_IO_ADDR(RAMPD)),      \
+ 166:/usr/avr/include/avr/wdt.h ****       [ccp_reg]            "I" (_SFR_IO_ADDR(CCP)),        \
+ 167:/usr/avr/include/avr/wdt.h ****       [ioreg_cen_mask]     "r" ((uint8_t)CCP_IOREG_gc),     \
+ 168:/usr/avr/include/avr/wdt.h ****       [wdt_reg]            "n" (_SFR_MEM_ADDR(WDT_CTRL)),   \
+ 169:/usr/avr/include/avr/wdt.h ****       [wdt_enable_timeout] "r" ((uint8_t)(WDT_CEN_bm | WDT_ENABLE_bm | timeout)), \
+ 170:/usr/avr/include/avr/wdt.h ****       [wdt_status_reg]     "n" (_SFR_MEM_ADDR(WDT_STATUS)), \
+ 171:/usr/avr/include/avr/wdt.h ****       [wdt_syncbusy_bit]   "I" (WDT_SYNCBUSY_bm)            \
+ 172:/usr/avr/include/avr/wdt.h ****     : "r0" \
+ 173:/usr/avr/include/avr/wdt.h **** ); \
+ 174:/usr/avr/include/avr/wdt.h **** } while(0)
+ 175:/usr/avr/include/avr/wdt.h **** 
+ 176:/usr/avr/include/avr/wdt.h **** #define wdt_disable() \
+ 177:/usr/avr/include/avr/wdt.h **** __asm__ __volatile__ (  \
+ 178:/usr/avr/include/avr/wdt.h ****     "in __tmp_reg__, %[rampd]"          "\n\t" \
+ 179:/usr/avr/include/avr/wdt.h ****     "out %[rampd], __zero_reg__"        "\n\t" \
+ 180:/usr/avr/include/avr/wdt.h ****     "out %[ccp_reg], %[ioreg_cen_mask]" "\n\t" \
+ 181:/usr/avr/include/avr/wdt.h ****     "sts %[wdt_reg], %[disable_mask]"   "\n\t" \
+ 182:/usr/avr/include/avr/wdt.h ****     "out %[rampd], __tmp_reg__"         "\n\t" \
+ 183:/usr/avr/include/avr/wdt.h ****     : \
+ 184:/usr/avr/include/avr/wdt.h ****     : [rampd]             "I" (_SFR_IO_ADDR(RAMPD)),    \
+ 185:/usr/avr/include/avr/wdt.h ****       [ccp_reg]           "I" (_SFR_IO_ADDR(CCP)),      \
+ 186:/usr/avr/include/avr/wdt.h ****       [ioreg_cen_mask]    "r" ((uint8_t)CCP_IOREG_gc),   \
+ 187:/usr/avr/include/avr/wdt.h ****       [wdt_reg]           "n" (_SFR_MEM_ADDR(WDT_CTRL)), \
+ 188:/usr/avr/include/avr/wdt.h ****       [disable_mask]      "r" ((uint8_t)((~WDT_ENABLE_bm) | WDT_CEN_bm)) \
+ 189:/usr/avr/include/avr/wdt.h ****     : "r0" \
+ 190:/usr/avr/include/avr/wdt.h **** );
+ 191:/usr/avr/include/avr/wdt.h **** 
+ 192:/usr/avr/include/avr/wdt.h **** #elif defined(__AVR_TINY__)
+ 193:/usr/avr/include/avr/wdt.h **** 
+ 194:/usr/avr/include/avr/wdt.h **** #define wdt_enable(value) \
+ 195:/usr/avr/include/avr/wdt.h **** __asm__ __volatile__ ( \
+ 196:/usr/avr/include/avr/wdt.h ****     "in __tmp_reg__,__SREG__" "\n\t"  \
+ 197:/usr/avr/include/avr/wdt.h ****     "cli" "\n\t"  \
+ 198:/usr/avr/include/avr/wdt.h ****     "wdr" "\n\t"  \
+ 199:/usr/avr/include/avr/wdt.h ****     "out %[CCPADDRESS],%[SIGNATURE]" "\n\t"  \
+ 200:/usr/avr/include/avr/wdt.h ****     "out %[WDTREG],%[WDVALUE]" "\n\t"  \
+ 201:/usr/avr/include/avr/wdt.h ****     "out __SREG__,__tmp_reg__" "\n\t"  \
+ 202:/usr/avr/include/avr/wdt.h ****     : /* no outputs */  \
+ 203:/usr/avr/include/avr/wdt.h ****     : [CCPADDRESS] "I" (_SFR_IO_ADDR(CCP)),  \
+ 204:/usr/avr/include/avr/wdt.h ****       [SIGNATURE] "r" ((uint8_t)0xD8), \
+ 205:/usr/avr/include/avr/wdt.h ****       [WDTREG] "I" (_SFR_IO_ADDR(_WD_CONTROL_REG)), \
+ 206:/usr/avr/include/avr/wdt.h ****       [WDVALUE] "r" ((uint8_t)((value & 0x08 ? _WD_PS3_MASK : 0x00) \
+ 207:/usr/avr/include/avr/wdt.h ****       | _BV(WDE) | (value & 0x07) )) \
+ 208:/usr/avr/include/avr/wdt.h ****     : "r16" \
+ 209:/usr/avr/include/avr/wdt.h **** )
+ 210:/usr/avr/include/avr/wdt.h **** 
+ 211:/usr/avr/include/avr/wdt.h **** #define wdt_disable() \
+ 212:/usr/avr/include/avr/wdt.h **** do { \
+ 213:/usr/avr/include/avr/wdt.h **** uint8_t temp_wd; \
+ 214:/usr/avr/include/avr/wdt.h **** __asm__ __volatile__ ( \
+ 215:/usr/avr/include/avr/wdt.h ****     "in __tmp_reg__,__SREG__" "\n\t"  \
+ 216:/usr/avr/include/avr/wdt.h ****     "cli" "\n\t"  \
+ 217:/usr/avr/include/avr/wdt.h ****     "wdr" "\n\t"  \
+ 218:/usr/avr/include/avr/wdt.h ****     "out %[CCPADDRESS],%[SIGNATURE]" "\n\t"  \
+ 219:/usr/avr/include/avr/wdt.h ****     "in  %[TEMP_WD],%[WDTREG]" "\n\t" \
+ 220:/usr/avr/include/avr/wdt.h ****     "cbr %[TEMP_WD],%[WDVALUE]" "\n\t" \
+ 221:/usr/avr/include/avr/wdt.h ****     "out %[WDTREG],%[TEMP_WD]" "\n\t" \
+ 222:/usr/avr/include/avr/wdt.h ****     "out __SREG__,__tmp_reg__" "\n\t" \
+ 223:/usr/avr/include/avr/wdt.h ****     : /*no output */ \
+ 224:/usr/avr/include/avr/wdt.h ****     : [CCPADDRESS] "I" (_SFR_IO_ADDR(CCP)), \
+ 225:/usr/avr/include/avr/wdt.h ****       [SIGNATURE] "r" ((uint8_t)0xD8), \
+ 226:/usr/avr/include/avr/wdt.h ****       [WDTREG] "I" (_SFR_IO_ADDR(_WD_CONTROL_REG)), \
+ 227:/usr/avr/include/avr/wdt.h ****       [TEMP_WD] "d" (temp_wd), \
+ 228:/usr/avr/include/avr/wdt.h ****       [WDVALUE] "n" (1 << WDE) \
+ 229:/usr/avr/include/avr/wdt.h ****     : "r16" \
+ 230:/usr/avr/include/avr/wdt.h **** ); \
+ 231:/usr/avr/include/avr/wdt.h **** }while(0)
+ 232:/usr/avr/include/avr/wdt.h **** 
+ 233:/usr/avr/include/avr/wdt.h **** #elif defined(CCP)
+ 234:/usr/avr/include/avr/wdt.h **** 
+ 235:/usr/avr/include/avr/wdt.h **** static __inline__
+ 236:/usr/avr/include/avr/wdt.h **** __attribute__ ((__always_inline__))
+ 237:/usr/avr/include/avr/wdt.h **** void wdt_enable (const uint8_t value)
+ 238:/usr/avr/include/avr/wdt.h **** {
+ 239:/usr/avr/include/avr/wdt.h **** 	if (!_SFR_IO_REG_P (CCP) && !_SFR_IO_REG_P (_WD_CONTROL_REG))
+ 240:/usr/avr/include/avr/wdt.h **** 	{
+ 241:/usr/avr/include/avr/wdt.h **** 		__asm__ __volatile__ (
+ 242:/usr/avr/include/avr/wdt.h **** 			"in __tmp_reg__,__SREG__" "\n\t"
+ 243:/usr/avr/include/avr/wdt.h **** 			"cli" "\n\t"
+ 244:/usr/avr/include/avr/wdt.h **** 			"wdr" "\n\t"
+ 245:/usr/avr/include/avr/wdt.h **** 			"sts %[CCPADDRESS],%[SIGNATURE]" "\n\t"
+ 246:/usr/avr/include/avr/wdt.h **** 			"sts %[WDTREG],%[WDVALUE]" "\n\t"
+ 247:/usr/avr/include/avr/wdt.h **** 			"out __SREG__,__tmp_reg__" "\n\t"
+ 248:/usr/avr/include/avr/wdt.h **** 			: /* no outputs */
+ 249:/usr/avr/include/avr/wdt.h **** 			: [CCPADDRESS] "n" (_SFR_MEM_ADDR(CCP)),
+ 250:/usr/avr/include/avr/wdt.h **** 			[SIGNATURE] "r" ((uint8_t)0xD8),
+ 251:/usr/avr/include/avr/wdt.h **** 			[WDTREG] "n" (_SFR_MEM_ADDR(_WD_CONTROL_REG)),
+ 252:/usr/avr/include/avr/wdt.h **** 			[WDVALUE] "r" ((uint8_t)((value & 0x08 ? _WD_PS3_MASK : 0x00)
+ 253:/usr/avr/include/avr/wdt.h **** 				| _BV(WDE) | (value & 0x07) ))
+ 254:/usr/avr/include/avr/wdt.h **** 			: "r0"
+ 255:/usr/avr/include/avr/wdt.h **** 			);
+ 256:/usr/avr/include/avr/wdt.h **** 	}
+ 257:/usr/avr/include/avr/wdt.h **** 	else if (!_SFR_IO_REG_P (CCP) && _SFR_IO_REG_P (_WD_CONTROL_REG))
+ 258:/usr/avr/include/avr/wdt.h **** 	{
+ 259:/usr/avr/include/avr/wdt.h **** 		__asm__ __volatile__ (
+ 260:/usr/avr/include/avr/wdt.h **** 			"in __tmp_reg__,__SREG__" "\n\t"
+ 261:/usr/avr/include/avr/wdt.h **** 			"cli" "\n\t"
+ 262:/usr/avr/include/avr/wdt.h **** 			"wdr" "\n\t"
+ 263:/usr/avr/include/avr/wdt.h **** 			"sts %[CCPADDRESS],%[SIGNATURE]" "\n\t"
+ 264:/usr/avr/include/avr/wdt.h **** 			"out %[WDTREG],%[WDVALUE]" "\n\t"
+ 265:/usr/avr/include/avr/wdt.h **** 			"out __SREG__,__tmp_reg__" "\n\t"
+ 266:/usr/avr/include/avr/wdt.h **** 			: /* no outputs */
+ 267:/usr/avr/include/avr/wdt.h **** 			: [CCPADDRESS] "n" (_SFR_MEM_ADDR(CCP)),
+ 268:/usr/avr/include/avr/wdt.h **** 			[SIGNATURE] "r" ((uint8_t)0xD8),
+ 269:/usr/avr/include/avr/wdt.h **** 			[WDTREG] "I" (_SFR_IO_ADDR(_WD_CONTROL_REG)),
+ 270:/usr/avr/include/avr/wdt.h **** 			[WDVALUE] "r" ((uint8_t)((value & 0x08 ? _WD_PS3_MASK : 0x00)
+ 271:/usr/avr/include/avr/wdt.h **** 				| _BV(WDE) | (value & 0x07) ))
+ 272:/usr/avr/include/avr/wdt.h **** 			: "r0"
+ 273:/usr/avr/include/avr/wdt.h **** 			);
+ 274:/usr/avr/include/avr/wdt.h **** 	}
+ 275:/usr/avr/include/avr/wdt.h **** 	else if (_SFR_IO_REG_P (CCP) && !_SFR_IO_REG_P (_WD_CONTROL_REG))
+ 276:/usr/avr/include/avr/wdt.h **** 	{
+ 277:/usr/avr/include/avr/wdt.h **** 		__asm__ __volatile__ (
+ 278:/usr/avr/include/avr/wdt.h **** 			"in __tmp_reg__,__SREG__" "\n\t"
+ 279:/usr/avr/include/avr/wdt.h **** 			"cli" "\n\t"
+ 280:/usr/avr/include/avr/wdt.h **** 			"wdr" "\n\t"
+ 281:/usr/avr/include/avr/wdt.h **** 			"out %[CCPADDRESS],%[SIGNATURE]" "\n\t"
+ 282:/usr/avr/include/avr/wdt.h **** 			"sts %[WDTREG],%[WDVALUE]" "\n\t"
+ 283:/usr/avr/include/avr/wdt.h **** 			"out __SREG__,__tmp_reg__" "\n\t"
+ 284:/usr/avr/include/avr/wdt.h **** 			: /* no outputs */
+ 285:/usr/avr/include/avr/wdt.h **** 			: [CCPADDRESS] "I" (_SFR_IO_ADDR(CCP)),
+ 286:/usr/avr/include/avr/wdt.h **** 			[SIGNATURE] "r" ((uint8_t)0xD8),
+ 287:/usr/avr/include/avr/wdt.h **** 			[WDTREG] "n" (_SFR_MEM_ADDR(_WD_CONTROL_REG)),
+ 288:/usr/avr/include/avr/wdt.h **** 			[WDVALUE] "r" ((uint8_t)((value & 0x08 ? _WD_PS3_MASK : 0x00)
+ 289:/usr/avr/include/avr/wdt.h **** 				| _BV(WDE) | (value & 0x07) ))
+ 290:/usr/avr/include/avr/wdt.h **** 			: "r0"
+ 291:/usr/avr/include/avr/wdt.h **** 			);
+ 292:/usr/avr/include/avr/wdt.h **** 	}
+ 293:/usr/avr/include/avr/wdt.h **** 	else
+ 294:/usr/avr/include/avr/wdt.h ****  	{
+ 295:/usr/avr/include/avr/wdt.h **** 		__asm__ __volatile__ (
+ 296:/usr/avr/include/avr/wdt.h **** 			"in __tmp_reg__,__SREG__" "\n\t"
+ 297:/usr/avr/include/avr/wdt.h **** 			"cli" "\n\t"
+ 298:/usr/avr/include/avr/wdt.h **** 			"wdr" "\n\t"
+ 299:/usr/avr/include/avr/wdt.h **** 			"out %[CCPADDRESS],%[SIGNATURE]" "\n\t"
+ 300:/usr/avr/include/avr/wdt.h **** 			"out %[WDTREG],%[WDVALUE]" "\n\t"
+ 301:/usr/avr/include/avr/wdt.h **** 			"out __SREG__,__tmp_reg__" "\n\t"
+ 302:/usr/avr/include/avr/wdt.h **** 			: /* no outputs */
+ 303:/usr/avr/include/avr/wdt.h **** 			: [CCPADDRESS] "I" (_SFR_IO_ADDR(CCP)),
+ 304:/usr/avr/include/avr/wdt.h **** 			[SIGNATURE] "r" ((uint8_t)0xD8),
+ 305:/usr/avr/include/avr/wdt.h **** 			[WDTREG] "I" (_SFR_IO_ADDR(_WD_CONTROL_REG)),
+ 306:/usr/avr/include/avr/wdt.h **** 			[WDVALUE] "r" ((uint8_t)((value & 0x08 ? _WD_PS3_MASK : 0x00)
+ 307:/usr/avr/include/avr/wdt.h **** 				| _BV(WDE) | (value & 0x07) ))
+ 308:/usr/avr/include/avr/wdt.h **** 			: "r0"
+ 309:/usr/avr/include/avr/wdt.h **** 			);
+ 310:/usr/avr/include/avr/wdt.h **** 	}
+ 311:/usr/avr/include/avr/wdt.h **** }
+ 312:/usr/avr/include/avr/wdt.h **** 
+ 313:/usr/avr/include/avr/wdt.h **** static __inline__
+ 314:/usr/avr/include/avr/wdt.h **** __attribute__ ((__always_inline__))
+ 315:/usr/avr/include/avr/wdt.h **** void wdt_disable (void)
+ 316:/usr/avr/include/avr/wdt.h **** {
+ 317:/usr/avr/include/avr/wdt.h **** 	if (!_SFR_IO_REG_P (CCP) && !_SFR_IO_REG_P(_WD_CONTROL_REG))
+ 318:/usr/avr/include/avr/wdt.h **** 	{
+ 319:/usr/avr/include/avr/wdt.h ****         uint8_t temp_wd;
+ 320:/usr/avr/include/avr/wdt.h ****         __asm__ __volatile__ (
+ 321:/usr/avr/include/avr/wdt.h **** 				"in __tmp_reg__,__SREG__" "\n\t"
+ 322:/usr/avr/include/avr/wdt.h **** 				"cli" "\n\t"
+ 323:/usr/avr/include/avr/wdt.h **** 				"wdr" "\n\t"
+ 324:/usr/avr/include/avr/wdt.h **** 				"sts %[CCPADDRESS],%[SIGNATURE]" "\n\t"
+ 325:/usr/avr/include/avr/wdt.h **** 				"lds %[TEMP_WD],%[WDTREG]" "\n\t"
+ 326:/usr/avr/include/avr/wdt.h **** 				"cbr %[TEMP_WD],%[WDVALUE]" "\n\t"
+ 327:/usr/avr/include/avr/wdt.h **** 				"sts %[WDTREG],%[TEMP_WD]" "\n\t"
+ 328:/usr/avr/include/avr/wdt.h **** 				"out __SREG__,__tmp_reg__" "\n\t"
+ 329:/usr/avr/include/avr/wdt.h **** 				: /*no output */
+ 330:/usr/avr/include/avr/wdt.h **** 				: [CCPADDRESS] "n" (_SFR_MEM_ADDR(CCP)),
+ 331:/usr/avr/include/avr/wdt.h **** 				[SIGNATURE] "r" ((uint8_t)0xD8),
+ 332:/usr/avr/include/avr/wdt.h **** 				[WDTREG] "n" (_SFR_MEM_ADDR(_WD_CONTROL_REG)),
+ 333:/usr/avr/include/avr/wdt.h **** 				[TEMP_WD] "d" (temp_wd),
+ 334:/usr/avr/include/avr/wdt.h **** 				[WDVALUE] "n" (1 << WDE)
+ 335:/usr/avr/include/avr/wdt.h **** 				: "r0"
+ 336:/usr/avr/include/avr/wdt.h **** 				);
+ 337:/usr/avr/include/avr/wdt.h **** 	}
+ 338:/usr/avr/include/avr/wdt.h **** 	else if (!_SFR_IO_REG_P (CCP) && _SFR_IO_REG_P(_WD_CONTROL_REG))
+ 339:/usr/avr/include/avr/wdt.h **** 	{
+ 340:/usr/avr/include/avr/wdt.h ****         uint8_t temp_wd;
+ 341:/usr/avr/include/avr/wdt.h ****         __asm__ __volatile__ (
+ 342:/usr/avr/include/avr/wdt.h **** 				"in __tmp_reg__,__SREG__" "\n\t"
+ 343:/usr/avr/include/avr/wdt.h **** 				"cli" "\n\t"
+ 344:/usr/avr/include/avr/wdt.h **** 				"wdr" "\n\t"
+ 345:/usr/avr/include/avr/wdt.h **** 				"sts %[CCPADDRESS],%[SIGNATURE]" "\n\t"
+ 346:/usr/avr/include/avr/wdt.h **** 				"in %[TEMP_WD],%[WDTREG]" "\n\t"
+ 347:/usr/avr/include/avr/wdt.h **** 				"cbr %[TEMP_WD],%[WDVALUE]" "\n\t"
+ 348:/usr/avr/include/avr/wdt.h **** 				"out %[WDTREG],%[TEMP_WD]" "\n\t"
+ 349:/usr/avr/include/avr/wdt.h **** 				"out __SREG__,__tmp_reg__" "\n\t"
+ 350:/usr/avr/include/avr/wdt.h **** 				: /*no output */
+ 351:/usr/avr/include/avr/wdt.h **** 				: [CCPADDRESS] "n" (_SFR_MEM_ADDR(CCP)),
+ 352:/usr/avr/include/avr/wdt.h **** 				[SIGNATURE] "r" ((uint8_t)0xD8),
+ 353:/usr/avr/include/avr/wdt.h **** 				[WDTREG] "I" (_SFR_IO_ADDR(_WD_CONTROL_REG)),
+ 354:/usr/avr/include/avr/wdt.h **** 				[TEMP_WD] "d" (temp_wd),
+ 355:/usr/avr/include/avr/wdt.h **** 				[WDVALUE] "n" (1 << WDE)
+ 356:/usr/avr/include/avr/wdt.h **** 				: "r0"
+ 357:/usr/avr/include/avr/wdt.h **** 				);
+ 358:/usr/avr/include/avr/wdt.h **** 	}
+ 359:/usr/avr/include/avr/wdt.h **** 	else if (_SFR_IO_REG_P (CCP) && !_SFR_IO_REG_P(_WD_CONTROL_REG))
+ 360:/usr/avr/include/avr/wdt.h **** 	{
+ 361:/usr/avr/include/avr/wdt.h ****         uint8_t temp_wd;
+ 362:/usr/avr/include/avr/wdt.h ****         __asm__ __volatile__ (
+ 363:/usr/avr/include/avr/wdt.h **** 				"in __tmp_reg__,__SREG__" "\n\t"
+ 364:/usr/avr/include/avr/wdt.h **** 				"cli" "\n\t"
+ 365:/usr/avr/include/avr/wdt.h **** 				"wdr" "\n\t"
+ 366:/usr/avr/include/avr/wdt.h **** 				"out %[CCPADDRESS],%[SIGNATURE]" "\n\t"
+ 367:/usr/avr/include/avr/wdt.h **** 				"lds %[TEMP_WD],%[WDTREG]" "\n\t"
+ 368:/usr/avr/include/avr/wdt.h **** 				"cbr %[TEMP_WD],%[WDVALUE]" "\n\t"
+ 369:/usr/avr/include/avr/wdt.h **** 				"sts %[WDTREG],%[TEMP_WD]" "\n\t"
+ 370:/usr/avr/include/avr/wdt.h **** 				"out __SREG__,__tmp_reg__" "\n\t"
+ 371:/usr/avr/include/avr/wdt.h **** 				: /*no output */
+ 372:/usr/avr/include/avr/wdt.h **** 				: [CCPADDRESS] "I" (_SFR_IO_ADDR(CCP)),
+ 373:/usr/avr/include/avr/wdt.h **** 				[SIGNATURE] "r" ((uint8_t)0xD8),
+ 374:/usr/avr/include/avr/wdt.h **** 				[WDTREG] "n" (_SFR_MEM_ADDR(_WD_CONTROL_REG)),
+ 375:/usr/avr/include/avr/wdt.h **** 				[TEMP_WD] "d" (temp_wd),
+ 376:/usr/avr/include/avr/wdt.h **** 				[WDVALUE] "n" (1 << WDE)
+ 377:/usr/avr/include/avr/wdt.h **** 				: "r0"
+ 378:/usr/avr/include/avr/wdt.h **** 				);
+ 379:/usr/avr/include/avr/wdt.h **** 	}
+ 380:/usr/avr/include/avr/wdt.h **** 	else
+ 381:/usr/avr/include/avr/wdt.h **** 	{
+ 382:/usr/avr/include/avr/wdt.h ****         uint8_t temp_wd;
+ 383:/usr/avr/include/avr/wdt.h ****         __asm__ __volatile__ (
+ 384:/usr/avr/include/avr/wdt.h **** 				"in __tmp_reg__,__SREG__" "\n\t"
+ 385:/usr/avr/include/avr/wdt.h **** 				"cli" "\n\t"
+ 386:/usr/avr/include/avr/wdt.h **** 				"wdr" "\n\t"
+ 387:/usr/avr/include/avr/wdt.h **** 				"out %[CCPADDRESS],%[SIGNATURE]" "\n\t"
+ 388:/usr/avr/include/avr/wdt.h **** 				"in %[TEMP_WD],%[WDTREG]" "\n\t"
+ 389:/usr/avr/include/avr/wdt.h **** 				"cbr %[TEMP_WD],%[WDVALUE]" "\n\t"
+ 390:/usr/avr/include/avr/wdt.h **** 				"out %[WDTREG],%[TEMP_WD]" "\n\t"
+ 391:/usr/avr/include/avr/wdt.h **** 				"out __SREG__,__tmp_reg__" "\n\t"
+ 392:/usr/avr/include/avr/wdt.h **** 				: /*no output */
+ 393:/usr/avr/include/avr/wdt.h **** 				: [CCPADDRESS] "I" (_SFR_IO_ADDR(CCP)),
+ 394:/usr/avr/include/avr/wdt.h **** 				[SIGNATURE] "r" ((uint8_t)0xD8),
+ 395:/usr/avr/include/avr/wdt.h **** 				[WDTREG] "I" (_SFR_IO_ADDR(_WD_CONTROL_REG)),
+ 396:/usr/avr/include/avr/wdt.h **** 				[TEMP_WD] "d" (temp_wd),
+ 397:/usr/avr/include/avr/wdt.h **** 				[WDVALUE] "n" (1 << WDE)
+ 398:/usr/avr/include/avr/wdt.h **** 				: "r0"
+ 399:/usr/avr/include/avr/wdt.h **** 				);
+ 400:/usr/avr/include/avr/wdt.h **** 	}
+ 401:/usr/avr/include/avr/wdt.h **** }
+ 402:/usr/avr/include/avr/wdt.h **** 
+ 403:/usr/avr/include/avr/wdt.h **** #else
+ 404:/usr/avr/include/avr/wdt.h **** 
+ 405:/usr/avr/include/avr/wdt.h **** static __inline__
+ 406:/usr/avr/include/avr/wdt.h **** __attribute__ ((__always_inline__))
+ 407:/usr/avr/include/avr/wdt.h **** void wdt_enable (const uint8_t value)
+ 408:/usr/avr/include/avr/wdt.h **** {
+ 409:/usr/avr/include/avr/wdt.h **** 	if (_SFR_IO_REG_P (_WD_CONTROL_REG))
+ 410:/usr/avr/include/avr/wdt.h **** 	{
+ 411:/usr/avr/include/avr/wdt.h **** 		__asm__ __volatile__ (
+ 412:/usr/avr/include/avr/wdt.h **** 				"in __tmp_reg__,__SREG__" "\n\t"
+ 413:/usr/avr/include/avr/wdt.h **** 				"cli" "\n\t"
+ 414:/usr/avr/include/avr/wdt.h **** 				"wdr" "\n\t"
+ 415:/usr/avr/include/avr/wdt.h **** 				"out %0, %1" "\n\t"
+ 416:/usr/avr/include/avr/wdt.h **** 				"out __SREG__,__tmp_reg__" "\n\t"
+ 417:/usr/avr/include/avr/wdt.h **** 				"out %0, %2" "\n \t"
+ 418:/usr/avr/include/avr/wdt.h **** 				: /* no outputs */
+ 419:/usr/avr/include/avr/wdt.h **** 				: "I" (_SFR_IO_ADDR(_WD_CONTROL_REG)),
+ 420:/usr/avr/include/avr/wdt.h **** 				"r" ((uint8_t)(_BV(_WD_CHANGE_BIT) | _BV(WDE))),
+ 421:/usr/avr/include/avr/wdt.h **** 				"r" ((uint8_t) ((value & 0x08 ? _WD_PS3_MASK : 0x00) |
+ 422:/usr/avr/include/avr/wdt.h **** 						_BV(WDE) | (value & 0x07)) )
+ 423:/usr/avr/include/avr/wdt.h **** 				: "r0"
+ 424:/usr/avr/include/avr/wdt.h **** 		);
+ 425:/usr/avr/include/avr/wdt.h **** 	}
+ 426:/usr/avr/include/avr/wdt.h **** 	else
+ 427:/usr/avr/include/avr/wdt.h **** 	{
+ 428:/usr/avr/include/avr/wdt.h **** 		__asm__ __volatile__ (
+ 429:/usr/avr/include/avr/wdt.h **** 				"in __tmp_reg__,__SREG__" "\n\t"
+ 430:/usr/avr/include/avr/wdt.h **** 				"cli" "\n\t"
+ 431:/usr/avr/include/avr/wdt.h **** 				"wdr" "\n\t"
+ 432:/usr/avr/include/avr/wdt.h **** 				"sts %0, %1" "\n\t"
+ 433:/usr/avr/include/avr/wdt.h **** 				"out __SREG__,__tmp_reg__" "\n\t"
+ 434:/usr/avr/include/avr/wdt.h **** 				"sts %0, %2" "\n \t"
+ 435:/usr/avr/include/avr/wdt.h **** 				: /* no outputs */
+ 436:/usr/avr/include/avr/wdt.h **** 				: "n" (_SFR_MEM_ADDR(_WD_CONTROL_REG)),
+ 437:/usr/avr/include/avr/wdt.h **** 				"r" ((uint8_t)(_BV(_WD_CHANGE_BIT) | _BV(WDE))),
+ 438:/usr/avr/include/avr/wdt.h **** 				"r" ((uint8_t) ((value & 0x08 ? _WD_PS3_MASK : 0x00) |
+ 439:/usr/avr/include/avr/wdt.h **** 						_BV(WDE) | (value & 0x07)) )
+ 440:/usr/avr/include/avr/wdt.h **** 				: "r0"
+ 441:/usr/avr/include/avr/wdt.h **** 		);
+ 442:/usr/avr/include/avr/wdt.h **** 	}
+ 443:/usr/avr/include/avr/wdt.h **** }
+ 444:/usr/avr/include/avr/wdt.h **** 
+ 445:/usr/avr/include/avr/wdt.h **** static __inline__
+ 446:/usr/avr/include/avr/wdt.h **** __attribute__ ((__always_inline__))
+ 447:/usr/avr/include/avr/wdt.h **** void wdt_disable (void)
+ 448:/usr/avr/include/avr/wdt.h **** {
+ 449:/usr/avr/include/avr/wdt.h **** 	if (_SFR_IO_REG_P (_WD_CONTROL_REG))
+ 450:/usr/avr/include/avr/wdt.h **** 	{
+ 451:/usr/avr/include/avr/wdt.h ****         uint8_t register temp_reg;
+ 452:/usr/avr/include/avr/wdt.h **** 		__asm__ __volatile__ (
+ 453:/usr/avr/include/avr/wdt.h **** 				"in __tmp_reg__,__SREG__"    "\n\t"
+ 454:/usr/avr/include/avr/wdt.h **** 				"cli"                        "\n\t"
+ 455:/usr/avr/include/avr/wdt.h **** 				"wdr"                        "\n\t"
+ 456:/usr/avr/include/avr/wdt.h **** 				"in  %[TEMPREG],%[WDTREG]"   "\n\t"
+ 457:/usr/avr/include/avr/wdt.h **** 				"ori %[TEMPREG],%[WDCE_WDE]" "\n\t"
+ 458:/usr/avr/include/avr/wdt.h **** 				"out %[WDTREG],%[TEMPREG]"   "\n\t"
+ 459:/usr/avr/include/avr/wdt.h **** 				"out %[WDTREG],__zero_reg__" "\n\t"
+ 460:/usr/avr/include/avr/wdt.h **** 				"out __SREG__,__tmp_reg__"   "\n\t"
+ 461:/usr/avr/include/avr/wdt.h **** 				: [TEMPREG] "=d" (temp_reg)
+ 462:/usr/avr/include/avr/wdt.h **** 				: [WDTREG]  "I"  (_SFR_IO_ADDR(_WD_CONTROL_REG)),
+ 463:/usr/avr/include/avr/wdt.h **** 				[WDCE_WDE]  "n"  ((uint8_t)(_BV(_WD_CHANGE_BIT) | _BV(WDE)))
+ 464:/usr/avr/include/avr/wdt.h **** 				: "r0"
+ 465:/usr/avr/include/avr/wdt.h **** 		);
+ 466:/usr/avr/include/avr/wdt.h **** 	}
+ 467:/usr/avr/include/avr/wdt.h **** 	else
+ 468:/usr/avr/include/avr/wdt.h **** 	{
+ 469:/usr/avr/include/avr/wdt.h ****         uint8_t register temp_reg;
+ 470:/usr/avr/include/avr/wdt.h **** 		__asm__ __volatile__ (
+ 584               	.LM53:
+ 585               	/* #APP */
+ 586               	 ;  470 "/usr/avr/include/avr/wdt.h" 1
+ 587 01ee 0FB6      		in __tmp_reg__,__SREG__
+ 588 01f0 F894      		cli
+ 589 01f2 A895      		wdr
+ 590 01f4 8091 6000 		lds r24,96
+ 591 01f8 8861      		ori r24,24
+ 592 01fa 8093 6000 		sts 96,r24
+ 593 01fe 1092 6000 		sts 96,__zero_reg__
+ 594 0202 0FBE      		out __SREG__,__tmp_reg__
+ 595               		
+ 596               	 ;  0 "" 2
+ 597               	/* #NOAPP */
+ 598               	.LBE8:
+ 471:/usr/avr/include/avr/wdt.h **** 				"in __tmp_reg__,__SREG__"    "\n\t"
+ 472:/usr/avr/include/avr/wdt.h **** 				"cli"                        "\n\t"
+ 473:/usr/avr/include/avr/wdt.h **** 				"wdr"                        "\n\t"
+ 474:/usr/avr/include/avr/wdt.h **** 				"lds %[TEMPREG],%[WDTREG]"   "\n\t"
+ 475:/usr/avr/include/avr/wdt.h **** 				"ori %[TEMPREG],%[WDCE_WDE]" "\n\t"
+ 476:/usr/avr/include/avr/wdt.h **** 				"sts %[WDTREG],%[TEMPREG]"   "\n\t"
+ 477:/usr/avr/include/avr/wdt.h **** 				"sts %[WDTREG],__zero_reg__" "\n\t"
+ 478:/usr/avr/include/avr/wdt.h **** 				"out __SREG__,__tmp_reg__"   "\n\t"
+ 479:/usr/avr/include/avr/wdt.h **** 				: [TEMPREG] "=d" (temp_reg)
+ 480:/usr/avr/include/avr/wdt.h **** 				: [WDTREG]  "n"  (_SFR_MEM_ADDR(_WD_CONTROL_REG)),
+ 481:/usr/avr/include/avr/wdt.h **** 				[WDCE_WDE]  "n"  ((uint8_t)(_BV(_WD_CHANGE_BIT) | _BV(WDE)))
+ 482:/usr/avr/include/avr/wdt.h **** 				: "r0"
+ 483:/usr/avr/include/avr/wdt.h **** 		);
+ 484:/usr/avr/include/avr/wdt.h **** 	}
+ 485:/usr/avr/include/avr/wdt.h **** }
+ 600               	.LM54:
+ 601 0204 0000      		nop
+ 602               	.LBE7:
+ 603               	.LBE6:
+ 605               	.Ltext2:
+  93:app.c         **** 	wdt_disable();
+  94:app.c         **** 
+  95:app.c         **** 	rxbn = 0;
+ 607               	.LM55:
+ 608 0206 1092 0000 		sts rxbn+1,__zero_reg__
+ 609 020a 1092 0000 		sts rxbn,__zero_reg__
+  96:app.c         **** 	rxbi = 0;
+ 611               	.LM56:
+ 612 020e 1092 0000 		sts rxbi+1,__zero_reg__
+ 613 0212 1092 0000 		sts rxbi,__zero_reg__
+  97:app.c         **** 	uart_init();
+ 615               	.LM57:
+ 616 0216 0E94 0000 		call uart_init
+  98:app.c         **** 	sei();
+ 618               	.LM58:
+ 619               	/* #APP */
+ 620               	 ;  98 "app.c" 1
+ 621 021a 7894      		sei
+ 622               	 ;  0 "" 2
+  99:app.c         **** 
+ 100:app.c         **** 	uart_outs("application starting...\n\r");
+ 624               	.LM59:
+ 625               	/* #NOAPP */
+ 626 021c 80E0      		ldi r24,lo8(.LC0)
+ 627 021e 90E0      		ldi r25,hi8(.LC0)
+ 628 0220 0E94 0000 		call uart_outs
+ 629               	.L23:
+ 101:app.c         **** 
+ 102:app.c         **** 	for(;;) {
+ 103:app.c         **** 		c = uart_getc();
+ 631               	.LM60:
+ 632 0224 0E94 0000 		call uart_getc
+ 633 0228 9E83      		std Y+6,r25
+ 634 022a 8D83      		std Y+5,r24
+ 104:app.c         **** 		if (c != -1) {
+ 636               	.LM61:
+ 637 022c 8D81      		ldd r24,Y+5
+ 638 022e 9E81      		ldd r25,Y+6
+ 639 0230 0196      		adiw r24,1
+ 640 0232 01F0      		breq .L23
+ 105:app.c         **** 		// OR, to read all the available characters at once:
+ 106:app.c         **** 		// while((c = uart_getc()) != -1) {
+ 107:app.c         **** 			if (c != '\r') {
+ 642               	.LM62:
+ 643 0234 8D81      		ldd r24,Y+5
+ 644 0236 9E81      		ldd r25,Y+6
+ 645 0238 0D97      		sbiw r24,13
+ 646 023a 01F0      		breq .L17
+ 108:app.c         **** 				if (commPos < COMM_LEN)
+ 648               	.LM63:
+ 649 023c 8981      		ldd r24,Y+1
+ 650 023e 9A81      		ldd r25,Y+2
+ 651 0240 0F97      		sbiw r24,15
+ 652 0242 04F4      		brge .L23
+ 109:app.c         **** 					comm[commPos++] = c;
+ 654               	.LM64:
+ 655 0244 8981      		ldd r24,Y+1
+ 656 0246 9A81      		ldd r25,Y+2
+ 657 0248 9C01      		movw r18,r24
+ 658 024a 2F5F      		subi r18,-1
+ 659 024c 3F4F      		sbci r19,-1
+ 660 024e 3A83      		std Y+2,r19
+ 661 0250 2983      		std Y+1,r18
+ 663               	.LM65:
+ 664 0252 4D81      		ldd r20,Y+5
+ 665 0254 9E01      		movw r18,r28
+ 666 0256 295F      		subi r18,-7
+ 667 0258 3F4F      		sbci r19,-1
+ 668 025a 820F      		add r24,r18
+ 669 025c 931F      		adc r25,r19
+ 670 025e FC01      		movw r30,r24
+ 671 0260 4083      		st Z,r20
+ 672 0262 00C0      		rjmp .L23
+ 673               	.L17:
+ 110:app.c         **** 			} else {
+ 111:app.c         **** 				comm[commPos] = '\0';
+ 675               	.LM66:
+ 676 0264 9E01      		movw r18,r28
+ 677 0266 295F      		subi r18,-7
+ 678 0268 3F4F      		sbci r19,-1
+ 679 026a 8981      		ldd r24,Y+1
+ 680 026c 9A81      		ldd r25,Y+2
+ 681 026e 820F      		add r24,r18
+ 682 0270 931F      		adc r25,r19
+ 683 0272 FC01      		movw r30,r24
+ 684 0274 1082      		st Z,__zero_reg__
+ 112:app.c         **** 				commPos = 0;
+ 686               	.LM67:
+ 687 0276 1A82      		std Y+2,__zero_reg__
+ 688 0278 1982      		std Y+1,__zero_reg__
+ 113:app.c         **** 
+ 114:app.c         **** 				strtok(comm, " ");
+ 690               	.LM68:
+ 691 027a CE01      		movw r24,r28
+ 692 027c 0796      		adiw r24,7
+ 693 027e 60E0      		ldi r22,lo8(.LC1)
+ 694 0280 70E0      		ldi r23,hi8(.LC1)
+ 695 0282 0E94 0000 		call strtok
+ 115:app.c         **** 				valStr = strtok(NULL, " ");
+ 697               	.LM69:
+ 698 0286 60E0      		ldi r22,lo8(.LC1)
+ 699 0288 70E0      		ldi r23,hi8(.LC1)
+ 700 028a 80E0      		ldi r24,0
+ 701 028c 90E0      		ldi r25,0
+ 702 028e 0E94 0000 		call strtok
+ 703 0292 9C83      		std Y+4,r25
+ 704 0294 8B83      		std Y+3,r24
+ 116:app.c         **** 				if(valStr == NULL)
+ 706               	.LM70:
+ 707 0296 8B81      		ldd r24,Y+3
+ 708 0298 9C81      		ldd r25,Y+4
+ 709 029a 892B      		or r24,r25
+ 710 029c 01F4      		brne .L18
+ 117:app.c         **** 					valStr = "";
+ 712               	.LM71:
+ 713 029e 80E0      		ldi r24,lo8(.LC2)
+ 714 02a0 90E0      		ldi r25,hi8(.LC2)
+ 715 02a2 9C83      		std Y+4,r25
+ 716 02a4 8B83      		std Y+3,r24
+ 717               	.L18:
+ 118:app.c         **** 				//val = strtol(valStr, NULL, 0);
+ 119:app.c         **** 
+ 120:app.c         **** 				if (!strcmp(comm, "test"))
+ 719               	.LM72:
+ 720 02a6 CE01      		movw r24,r28
+ 721 02a8 0796      		adiw r24,7
+ 722 02aa 60E0      		ldi r22,lo8(.LC3)
+ 723 02ac 70E0      		ldi r23,hi8(.LC3)
+ 724 02ae 0E94 0000 		call strcmp
+ 726               	.LM73:
+ 727 02b2 892B      		or r24,r25
+ 728 02b4 01F4      		brne .L19
+ 121:app.c         **** 					uart_outs("test OK\n\r");
+ 730               	.LM74:
+ 731 02b6 80E0      		ldi r24,lo8(.LC4)
+ 732 02b8 90E0      		ldi r25,hi8(.LC4)
+ 733 02ba 0E94 0000 		call uart_outs
+ 734 02be 00C0      		rjmp .L23
+ 735               	.L19:
+ 122:app.c         **** 				else if (!strcmp(comm, "reset")) {
+ 737               	.LM75:
+ 738 02c0 CE01      		movw r24,r28
+ 739 02c2 0796      		adiw r24,7
+ 740 02c4 60E0      		ldi r22,lo8(.LC5)
+ 741 02c6 70E0      		ldi r23,hi8(.LC5)
+ 742 02c8 0E94 0000 		call strcmp
+ 744               	.LM76:
+ 745 02cc 892B      		or r24,r25
+ 746 02ce 01F4      		brne .L20
+ 123:app.c         **** 					asm ("cli");
+ 748               	.LM77:
+ 749               	/* #APP */
+ 750               	 ;  123 "app.c" 1
+ 751 02d0 F894      		cli
+ 752               	 ;  0 "" 2
+ 124:app.c         **** 					MCUSR = 0;
+ 754               	.LM78:
+ 755               	/* #NOAPP */
+ 756 02d2 84E5      		ldi r24,lo8(84)
+ 757 02d4 90E0      		ldi r25,0
+ 759               	.LM79:
+ 760 02d6 FC01      		movw r30,r24
+ 761 02d8 1082      		st Z,__zero_reg__
+ 125:app.c         **** 					asm volatile ("jmp 0x7c00");
+ 763               	.LM80:
+ 764               	/* #APP */
+ 765               	 ;  125 "app.c" 1
+ 766 02da 0C94 003E 		jmp 0x7c00
+ 767               	 ;  0 "" 2
+ 768               	/* #NOAPP */
+ 769 02de 00C0      		rjmp .L23
+ 770               	.L20:
+ 126:app.c         **** 				} else if (!strcmp(comm, "id")) {
+ 772               	.LM81:
+ 773 02e0 CE01      		movw r24,r28
+ 774 02e2 0796      		adiw r24,7
+ 775 02e4 60E0      		ldi r22,lo8(.LC6)
+ 776 02e6 70E0      		ldi r23,hi8(.LC6)
+ 777 02e8 0E94 0000 		call strcmp
+ 779               	.LM82:
+ 780 02ec 892B      		or r24,r25
+ 781 02ee 01F4      		brne .L21
+ 127:app.c         **** 					uart_outs("I_METER_RS_pA\n\r");
+ 783               	.LM83:
+ 784 02f0 80E0      		ldi r24,lo8(.LC7)
+ 785 02f2 90E0      		ldi r25,hi8(.LC7)
+ 786 02f4 0E94 0000 		call uart_outs
+ 787 02f8 00C0      		rjmp .L23
+ 788               	.L21:
+ 128:app.c         **** 				} else if (!strcmp(comm, "I")) {
+ 790               	.LM84:
+ 791 02fa CE01      		movw r24,r28
+ 792 02fc 0796      		adiw r24,7
+ 793 02fe 60E0      		ldi r22,lo8(.LC8)
+ 794 0300 70E0      		ldi r23,hi8(.LC8)
+ 795 0302 0E94 0000 		call strcmp
+ 797               	.LM85:
+ 798 0306 892B      		or r24,r25
+ 799 0308 01F4      		brne .L22
+ 129:app.c         **** 					uart_outs("I = 21.00 uA\n\r");
+ 801               	.LM86:
+ 802 030a 80E0      		ldi r24,lo8(.LC9)
+ 803 030c 90E0      		ldi r25,hi8(.LC9)
+ 804 030e 0E94 0000 		call uart_outs
+ 805 0312 00C0      		rjmp .L23
+ 806               	.L22:
+ 130:app.c         **** 				}else {
+ 131:app.c         **** 					uart_outs(comm);
+ 808               	.LM87:
+ 809 0314 CE01      		movw r24,r28
+ 810 0316 0796      		adiw r24,7
+ 811 0318 0E94 0000 		call uart_outs
+ 132:app.c         **** 					uart_putc(' ');
+ 813               	.LM88:
+ 814 031c 80E2      		ldi r24,lo8(32)
+ 815 031e 0E94 0000 		call uart_putc
+ 133:app.c         **** 					uart_outs(valStr);
+ 817               	.LM89:
+ 818 0322 8B81      		ldd r24,Y+3
+ 819 0324 9C81      		ldd r25,Y+4
+ 820 0326 0E94 0000 		call uart_outs
+ 134:app.c         **** 					uart_outs("\n\r");
+ 822               	.LM90:
+ 823 032a 80E0      		ldi r24,lo8(.LC10)
+ 824 032c 90E0      		ldi r25,hi8(.LC10)
+ 825 032e 0E94 0000 		call uart_outs
+ 103:app.c         **** 		if (c != -1) {
+ 827               	.LM91:
+ 828 0332 00C0      		rjmp .L23
+ 836               	.Lscope6:
+ 838               		.stabd	78,0,0
+ 840               	.Letext0:
+ 841               		.ident	"GCC: (GNU) 9.3.0"
+ 842               	.global __do_copy_data
+ 843               	.global __do_clear_bss
+DEFINED SYMBOLS
+                            *ABS*:00000000 app.c
+     /tmp/ccfrdqCK.s:2      *ABS*:0000003e __SP_H__
+     /tmp/ccfrdqCK.s:3      *ABS*:0000003d __SP_L__
+     /tmp/ccfrdqCK.s:4      *ABS*:0000003f __SREG__
+     /tmp/ccfrdqCK.s:5      *ABS*:00000000 __tmp_reg__
+     /tmp/ccfrdqCK.s:6      *ABS*:00000001 __zero_reg__
+                            *COM*:0000000a rxbuf
+                            *COM*:00000002 rxbn
+                            *COM*:00000002 rxbi
+     /tmp/ccfrdqCK.s:123    .text:00000000 __vector_18
+     /tmp/ccfrdqCK.s:124    .text:00000000 L0
+     /tmp/ccfrdqCK.s:141    .text:0000001c L0
+     /tmp/ccfrdqCK.s:230    .text:0000009e L0
+     /tmp/ccfrdqCK.s:233    .text:0000009e uart_init
+     /tmp/ccfrdqCK.s:234    .text:0000009e L0
+     /tmp/ccfrdqCK.s:302    .text:000000e6 L0
+     /tmp/ccfrdqCK.s:305    .text:000000e6 uart_getc
+     /tmp/ccfrdqCK.s:306    .text:000000e6 L0
+     /tmp/ccfrdqCK.s:406    .text:00000162 L0
+     /tmp/ccfrdqCK.s:410    .text:00000162 uart_putc
+     /tmp/ccfrdqCK.s:411    .text:00000162 L0
+     /tmp/ccfrdqCK.s:458    .text:00000196 L0
+     /tmp/ccfrdqCK.s:462    .text:00000196 uart_outs
+     /tmp/ccfrdqCK.s:463    .text:00000196 L0
+     /tmp/ccfrdqCK.s:469    .text:0000019c L0
+     /tmp/ccfrdqCK.s:524    .text:000001d8 L0
+     /tmp/ccfrdqCK.s:552    .text:000001d8 main
+     /tmp/ccfrdqCK.s:553    .text:000001d8 L0
+     /tmp/ccfrdqCK.s:838    .text:00000334 L0
+     /tmp/ccfrdqCK.s:204    .text:0000007e .L4
+     /tmp/ccfrdqCK.s:181    .text:00000056 .L3
+     /tmp/ccfrdqCK.s:387    .text:00000156 .L7
+     /tmp/ccfrdqCK.s:365    .text:00000138 .L8
+     /tmp/ccfrdqCK.s:392    .text:0000015a .L9
+     /tmp/ccfrdqCK.s:425    .text:0000016e .L11
+     /tmp/ccfrdqCK.s:487    .text:000001ae .L13
+     /tmp/ccfrdqCK.s:482    .text:000001a8 .L14
+     /tmp/ccfrdqCK.s:526    .rodata:00000000 .LC0
+     /tmp/ccfrdqCK.s:629    .text:00000224 .L23
+     /tmp/ccfrdqCK.s:673    .text:00000264 .L17
+     /tmp/ccfrdqCK.s:528    .rodata:0000001a .LC1
+     /tmp/ccfrdqCK.s:717    .text:000002a6 .L18
+     /tmp/ccfrdqCK.s:530    .rodata:0000001c .LC2
+     /tmp/ccfrdqCK.s:532    .rodata:0000001d .LC3
+     /tmp/ccfrdqCK.s:735    .text:000002c0 .L19
+     /tmp/ccfrdqCK.s:534    .rodata:00000022 .LC4
+     /tmp/ccfrdqCK.s:536    .rodata:0000002c .LC5
+     /tmp/ccfrdqCK.s:770    .text:000002e0 .L20
+     /tmp/ccfrdqCK.s:538    .rodata:00000032 .LC6
+     /tmp/ccfrdqCK.s:788    .text:000002fa .L21
+     /tmp/ccfrdqCK.s:540    .rodata:00000035 .LC7
+     /tmp/ccfrdqCK.s:542    .rodata:00000045 .LC8
+     /tmp/ccfrdqCK.s:806    .text:00000314 .L22
+     /tmp/ccfrdqCK.s:544    .rodata:00000047 .LC9
+     /tmp/ccfrdqCK.s:546    .rodata:00000056 .LC10
+     /tmp/ccfrdqCK.s:10     .text:00000000 .Ltext0
+     /tmp/ccfrdqCK.s:126    .text:00000000 .LM0
+     /tmp/ccfrdqCK.s:149    .text:00000020 .LM1
+     /tmp/ccfrdqCK.s:153    .text:00000028 .LM2
+     /tmp/ccfrdqCK.s:157    .text:0000002c .LM3
+     /tmp/ccfrdqCK.s:163    .text:0000003c .LM4
+     /tmp/ccfrdqCK.s:169    .text:00000044 .LM5
+     /tmp/ccfrdqCK.s:175    .text:0000004c .LM6
+     /tmp/ccfrdqCK.s:183    .text:00000056 .LM7
+     /tmp/ccfrdqCK.s:190    .text:00000060 .LM8
+     /tmp/ccfrdqCK.s:198    .text:0000006c .LM9
+     /tmp/ccfrdqCK.s:206    .text:0000007e .LM10
+     /tmp/ccfrdqCK.s:228    .text:0000009e .Lscope1
+     /tmp/ccfrdqCK.s:236    .text:0000009e .LM11
+     /tmp/ccfrdqCK.s:247    .text:000000a6 .LM12
+     /tmp/ccfrdqCK.s:251    .text:000000aa .LM13
+     /tmp/ccfrdqCK.s:255    .text:000000ae .LM14
+     /tmp/ccfrdqCK.s:259    .text:000000b2 .LM15
+     /tmp/ccfrdqCK.s:264    .text:000000b8 .LM16
+     /tmp/ccfrdqCK.s:275    .text:000000ca .LM17
+     /tmp/ccfrdqCK.s:279    .text:000000ce .LM18
+     /tmp/ccfrdqCK.s:284    .text:000000d4 .LM19
+     /tmp/ccfrdqCK.s:288    .text:000000d8 .LM20
+     /tmp/ccfrdqCK.s:293    .text:000000de .LM21
+     /tmp/ccfrdqCK.s:300    .text:000000e6 .Lscope2
+     /tmp/ccfrdqCK.s:308    .text:000000e6 .LM22
+     /tmp/ccfrdqCK.s:320    .text:000000f0 .LM23
+     /tmp/ccfrdqCK.s:324    .text:000000f8 .LM24
+     /tmp/ccfrdqCK.s:329    .text:000000fe .LM25
+     /tmp/ccfrdqCK.s:335    .text:00000100 .LM26
+     /tmp/ccfrdqCK.s:340    .text:00000108 .LM27
+     /tmp/ccfrdqCK.s:347    .text:00000112 .LM28
+     /tmp/ccfrdqCK.s:354    .text:00000124 .LM29
+     /tmp/ccfrdqCK.s:358    .text:0000012c .LM30
+     /tmp/ccfrdqCK.s:362    .text:00000130 .LM31
+     /tmp/ccfrdqCK.s:367    .text:00000138 .LM32
+     /tmp/ccfrdqCK.s:374    .text:0000014a .LM33
+     /tmp/ccfrdqCK.s:380    .text:0000014c .LM34
+     /tmp/ccfrdqCK.s:389    .text:00000156 .LM35
+     /tmp/ccfrdqCK.s:395    .text:0000015a .LM36
+     /tmp/ccfrdqCK.s:404    .text:00000162 .Lscope3
+     /tmp/ccfrdqCK.s:413    .text:00000162 .LM37
+     /tmp/ccfrdqCK.s:427    .text:0000016e .LM38
+     /tmp/ccfrdqCK.s:439    .text:00000182 .LM39
+     /tmp/ccfrdqCK.s:443    .text:00000186 .LM40
+     /tmp/ccfrdqCK.s:448    .text:0000018c .LM41
+     /tmp/ccfrdqCK.s:456    .text:00000196 .Lscope4
+     /tmp/ccfrdqCK.s:465    .text:00000196 .LM42
+     /tmp/ccfrdqCK.s:480    .text:000001a6 .LM43
+     /tmp/ccfrdqCK.s:484    .text:000001a8 .LM44
+     /tmp/ccfrdqCK.s:489    .text:000001ae .LM45
+     /tmp/ccfrdqCK.s:498    .text:000001bc .LM46
+     /tmp/ccfrdqCK.s:503    .text:000001c2 .LM47
+     /tmp/ccfrdqCK.s:508    .text:000001c8 .LM48
+     /tmp/ccfrdqCK.s:522    .text:000001d8 .Lscope5
+     /tmp/ccfrdqCK.s:555    .text:000001d8 .LM49
+     /tmp/ccfrdqCK.s:567    .text:000001e2 .LM50
+     /tmp/ccfrdqCK.s:571    .text:000001e6 .LM51
+     /tmp/ccfrdqCK.s:575    .text:000001ea .LM52
+     /tmp/ccfrdqCK.s:582    .text:000001ee .Ltext1
+     /tmp/ccfrdqCK.s:584    .text:000001ee .LM53
+     /tmp/ccfrdqCK.s:600    .text:00000204 .LM54
+     /tmp/ccfrdqCK.s:605    .text:00000206 .Ltext2
+     /tmp/ccfrdqCK.s:607    .text:00000206 .LM55
+     /tmp/ccfrdqCK.s:611    .text:0000020e .LM56
+     /tmp/ccfrdqCK.s:615    .text:00000216 .LM57
+     /tmp/ccfrdqCK.s:618    .text:0000021a .LM58
+     /tmp/ccfrdqCK.s:624    .text:0000021c .LM59
+     /tmp/ccfrdqCK.s:631    .text:00000224 .LM60
+     /tmp/ccfrdqCK.s:636    .text:0000022c .LM61
+     /tmp/ccfrdqCK.s:642    .text:00000234 .LM62
+     /tmp/ccfrdqCK.s:648    .text:0000023c .LM63
+     /tmp/ccfrdqCK.s:654    .text:00000244 .LM64
+     /tmp/ccfrdqCK.s:663    .text:00000252 .LM65
+     /tmp/ccfrdqCK.s:675    .text:00000264 .LM66
+     /tmp/ccfrdqCK.s:686    .text:00000276 .LM67
+     /tmp/ccfrdqCK.s:690    .text:0000027a .LM68
+     /tmp/ccfrdqCK.s:697    .text:00000286 .LM69
+     /tmp/ccfrdqCK.s:706    .text:00000296 .LM70
+     /tmp/ccfrdqCK.s:712    .text:0000029e .LM71
+     /tmp/ccfrdqCK.s:719    .text:000002a6 .LM72
+     /tmp/ccfrdqCK.s:726    .text:000002b2 .LM73
+     /tmp/ccfrdqCK.s:730    .text:000002b6 .LM74
+     /tmp/ccfrdqCK.s:737    .text:000002c0 .LM75
+     /tmp/ccfrdqCK.s:744    .text:000002cc .LM76
+     /tmp/ccfrdqCK.s:748    .text:000002d0 .LM77
+     /tmp/ccfrdqCK.s:754    .text:000002d2 .LM78
+     /tmp/ccfrdqCK.s:759    .text:000002d6 .LM79
+     /tmp/ccfrdqCK.s:763    .text:000002da .LM80
+     /tmp/ccfrdqCK.s:772    .text:000002e0 .LM81
+     /tmp/ccfrdqCK.s:779    .text:000002ec .LM82
+     /tmp/ccfrdqCK.s:783    .text:000002f0 .LM83
+     /tmp/ccfrdqCK.s:790    .text:000002fa .LM84
+     /tmp/ccfrdqCK.s:797    .text:00000306 .LM85
+     /tmp/ccfrdqCK.s:801    .text:0000030a .LM86
+     /tmp/ccfrdqCK.s:808    .text:00000314 .LM87
+     /tmp/ccfrdqCK.s:813    .text:0000031c .LM88
+     /tmp/ccfrdqCK.s:817    .text:00000322 .LM89
+     /tmp/ccfrdqCK.s:822    .text:0000032a .LM90
+     /tmp/ccfrdqCK.s:827    .text:00000332 .LM91
+     /tmp/ccfrdqCK.s:836    .text:00000334 .Lscope6
+     /tmp/ccfrdqCK.s:840    .text:00000334 .Letext0
+
+UNDEFINED SYMBOLS
+strtok
+strcmp
+__do_copy_data
+__do_clear_bss
