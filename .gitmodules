@@ -1,0 +1,3 @@
+[submodule "AVR"]
+	path = AVR
+	url = git@github.com:rudolfII/IMeter4VdG-AVR.git
